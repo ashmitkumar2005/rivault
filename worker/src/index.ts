@@ -101,15 +101,15 @@ export default {
 
                 const doRes = await stub.fetch(doReq);
 
-                // Properly clone response properties
-                const newHeaders = new Headers(doRes.headers);
-                newHeaders.set('Access-Control-Allow-Origin', '*');
+                // BULLETPROOF FIX:
+                // Instead of trying to clone/proxy the response object (which can be flaky),
+                // we just check the result and return a fresh, clean Response.
+                if (!doRes.ok) {
+                    const errorText = await doRes.text();
+                    return new Response(`DO Error: ${errorText}`, { status: doRes.status, headers: corsHeaders });
+                }
 
-                return new Response(doRes.body, {
-                    status: doRes.status,
-                    statusText: doRes.statusText,
-                    headers: newHeaders
-                });
+                return new Response(null, { status: 200, headers: corsHeaders });
 
             } catch (err: any) {
                 return new Response(`Upload error: ${err.message}`, { status: 500, headers: corsHeaders });

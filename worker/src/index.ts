@@ -64,6 +64,7 @@ export default {
         const stub = env.FS_DO.get(id);
 
         // --- Handle Chunk Upload (Intercept before DO) ---
+        // --- Handle Chunk Upload (Intercept before DO) ---
         // POST /api/files/:id/chunks?order=0
         if (request.method === 'POST' && url.pathname.includes('/chunks')) {
             const fileId = url.pathname.split('/')[3];
@@ -74,7 +75,7 @@ export default {
             const chunkBytes = new Uint8Array(chunkData);
 
             if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) {
-                return new Response('Server unconfigured (Missing Telegram creds)', { status: 503 });
+                return new Response('Server unconfigured (Missing Telegram creds)', { status: 503, headers: corsHeaders });
             }
 
             try {
@@ -92,16 +93,19 @@ export default {
                         chunk: {
                             order,
                             storageReference,
-                            size // Add size if needed in model, though Chunk interface in types.ts only has order/ref usually?
+                            size
                         }
                     }),
                     headers: { 'Content-Type': 'application/json' }
                 });
 
-                return await stub.fetch(doReq);
+                const doRes = await stub.fetch(doReq);
+                const newDoRes = new Response(doRes.body, doRes);
+                newDoRes.headers.set('Access-Control-Allow-Origin', '*');
+                return newDoRes;
 
             } catch (err: any) {
-                return new Response(`Upload error: ${err.message}`, { status: 500 });
+                return new Response(`Upload error: ${err.message}`, { status: 500, headers: corsHeaders });
             }
         }
 

@@ -27,6 +27,13 @@ export default {
             url = newUrl; // Use this normalized URL for everything
         }
 
+        // Fix double slashes (e.g. /api//auth/verify) caused by trailing slash in config
+        if (url.pathname.includes('//')) {
+            const newUrl = new URL(request.url);
+            newUrl.pathname = url.pathname.replace(/\/+/g, '/');
+            url = newUrl;
+        }
+
         // CORS headers
         const corsHeaders = {
             'Access-Control-Allow-Origin': '*', // For dev. In prod, lock this down.

@@ -15,7 +15,17 @@ export interface Env {
 
 export default {
     async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-        const url = new URL(request.url);
+        let url = new URL(request.url);
+
+        // CONFIGURATION FIX:
+        // If the user forgot to add "/api" to their NEXT_PUBLIC_API_URL, 
+        // requests will come in as "/auth/verify" instead of "/api/auth/verify".
+        // We auto-fix this here to prevent "Invalid Password" (404) errors.
+        if (!url.pathname.startsWith('/api/')) {
+            const newUrl = new URL(request.url);
+            newUrl.pathname = '/api' + url.pathname;
+            url = newUrl; // Use this normalized URL for everything
+        }
 
         // CORS headers
         const corsHeaders = {
@@ -89,7 +99,9 @@ export default {
         }
 
         // Forward other requests
-        const response = await stub.fetch(request);
+        // IMPORTANT: We must pass the normalized URL (with /api) to the Durable Object
+        const newRequest = new Request(url.toString(), request);
+        const response = await stub.fetch(newRequest);
 
         // Re-wrap response to add CORS
         const newResponse = new Response(response.body, response);

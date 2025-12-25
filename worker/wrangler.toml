@@ -11,7 +11,7 @@ bindings = [
 # Migrations for Durable Objects - REQUIRED for new classes
 [[migrations]]
 tag = "v1"
-new_classes = ["FileSystemDO"]
+new_sqlite_classes = ["FileSystemDO"]
 
 # R2 Binding (Optional for now, but good to have ready if we move blob storage)
 # [[r2_buckets]]

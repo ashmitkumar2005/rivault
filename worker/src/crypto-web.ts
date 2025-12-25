@@ -137,7 +137,7 @@ export async function decryptData(
     const decrypted = await crypto.subtle.decrypt(
         {
             name: AES_ALGORITHM,
-            iv: iv
+            iv: iv as any
         },
         key,
         combined

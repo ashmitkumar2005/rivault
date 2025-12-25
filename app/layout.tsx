@@ -13,6 +13,8 @@ export const metadata: Metadata = {
   description: "Private, encrypted, crash-safe storage.",
 };
 
+export const runtime = "edge";
+
 export default function RootLayout({
   children,
 }: Readonly<{

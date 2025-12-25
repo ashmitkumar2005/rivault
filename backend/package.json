@@ -1,0 +1,19 @@
+{
+    "name": "rivault-backend",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "build": "tsc",
+        "start": "node dist/api/server.js"
+    },
+    "dependencies": {
+        "@fastify/cors": "^11.2.0",
+        "@fastify/multipart": "^9.3.0",
+        "dotenv": "^17.2.3",
+        "fastify": "^5.6.2"
+    },
+    "devDependencies": {
+        "@types/node": "^20.0.0",
+        "typescript": "^5.0.0"
+    }
+}

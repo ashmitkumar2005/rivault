@@ -1,0 +1,19 @@
+name = "rivault-worker"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+
+# Durable Object Binding
+[durable_objects]
+bindings = [
+  { name = "FS_DO", class_name = "FileSystemDO" }
+]
+
+# Migrations for Durable Objects - REQUIRED for new classes
+[[migrations]]
+tag = "v1"
+new_classes = ["FileSystemDO"]
+
+# R2 Binding (Optional for now, but good to have ready if we move blob storage)
+# [[r2_buckets]]
+# binding = "RIVAULT_BUCKET"
+# bucket_name = "rivault-data"

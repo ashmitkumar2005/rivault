@@ -85,8 +85,9 @@ export default function MainView() {
                 await uploadFile(currentPath, file, (p) => setUploadProgress({ name: file.name, percent: p }));
                 setUploadProgress(null);
                 refresh();
-            } catch (err) {
-                alert("Upload failed");
+            } catch (err: any) {
+                console.error(err);
+                alert(`Upload failed: ${err.message || err}`);
                 setUploadProgress(null);
             }
         }

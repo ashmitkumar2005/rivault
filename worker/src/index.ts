@@ -100,9 +100,16 @@ export default {
                 });
 
                 const doRes = await stub.fetch(doReq);
-                const newDoRes = new Response(doRes.body, doRes);
-                newDoRes.headers.set('Access-Control-Allow-Origin', '*');
-                return newDoRes;
+
+                // Properly clone response properties
+                const newHeaders = new Headers(doRes.headers);
+                newHeaders.set('Access-Control-Allow-Origin', '*');
+
+                return new Response(doRes.body, {
+                    status: doRes.status,
+                    statusText: doRes.statusText,
+                    headers: newHeaders
+                });
 
             } catch (err: any) {
                 return new Response(`Upload error: ${err.message}`, { status: 500, headers: corsHeaders });

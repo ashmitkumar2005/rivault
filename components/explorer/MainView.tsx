@@ -53,7 +53,8 @@ export default function MainView() {
             res = res.filter(item => {
                 if (isFolder(item)) return false; // Hide folders when filtering by type?? Or show them? 
                 // Decision: Hide folders when specific type filter is active to show only that type of files.
-                const ext = item.name.split('.').pop()?.toLowerCase() || '';
+                const file = item as APIFile;
+                const ext = file.name.split('.').pop()?.toLowerCase() || '';
 
                 if (fileTypeFilter === 'image') return ['jpg', 'png', 'gif', 'jpeg', 'webp', 'svg', 'bmp'].includes(ext);
                 if (fileTypeFilter === 'video') return ['mp4', 'mkv', 'mov', 'avi', 'webm', 'm4v'].includes(ext);
@@ -336,7 +337,7 @@ export default function MainView() {
                                             {isDir ? (
                                                 <FolderIcon size={20} className="text-yellow-500/80 group-hover:text-yellow-400 transition-colors" />
                                             ) : (
-                                                getFileIcon(item.name)
+                                                getFileIcon((item as APIFile).name)
                                             )}
                                         </div>
                                         <div className={`font-medium ${isSel ? "text-blue-100" : "text-zinc-300 group-hover:text-white"}`}>

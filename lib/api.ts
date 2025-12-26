@@ -5,6 +5,8 @@ export type APIFolder = {
     parentId: string;
     name: string;
     createdAt: number;
+    size?: never;
+    mimeType?: never;
 };
 
 export type APIFile = {

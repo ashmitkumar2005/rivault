@@ -34,16 +34,23 @@ function FolderNode({ folder, depth = 0 }: { folder: APIFolder; depth?: number }
     };
 
     return (
-        <div className="select-none animate-fade-in">
+        <div className="select-none animate-fade-in group/node">
             <div
-                className={`group flex items-center py-2 px-3 cursor-pointer rounded-lg mx-2 transition-all duration-200 ${isActive
+                className={`group flex items-center py-2 px-2 md:px-3 cursor-pointer rounded-lg mx-1 md:mx-2 transition-all duration-200 justify-center md:justify-start ${isActive
                     ? "bg-blue-600/20 text-blue-200 border border-blue-500/20"
                     : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
                     }`}
-                style={{ paddingLeft: `${depth * 12 + 12}px` }}
+                // Remove padding indentation on mobile to keep icons centered
+                style={{ paddingLeft: typeof window !== 'undefined' && window.innerWidth >= 768 ? `${depth * 12 + 12}px` : undefined }}
                 onClick={handleClick}
             >
-                <div className="flex items-center min-w-[20px] justify-center mr-1">
+                {/* Toggle Button - Hidden on mobile for cleaner look, or maybe show it? Mobile tree nav is hard sideways. 
+                    Let's hide tree expansion on mobile for now and just show current folder? 
+                    Actually, let's keep it but make it tiny or hidden. user wants "icon only".
+                    Tree view in icon-only mode is really hard. 
+                    Let's just show the icon.
+                 */}
+                <div className="hidden md:flex items-center min-w-[20px] justify-center mr-1">
                     <button
                         onClick={handleToggle}
                         className={`p-0.5 rounded-md hover:bg-white/10 transition-colors ${isOpen ? "text-zinc-300" : "text-zinc-500"}`}
@@ -56,29 +63,28 @@ function FolderNode({ folder, depth = 0 }: { folder: APIFolder; depth?: number }
                 </div>
 
                 {/* Folder Icon */}
-                <span className={`mr-2.5 transition-colors ${isActive ? "text-blue-400" : "text-yellow-500/80 group-hover:text-yellow-400"}`}>
-                    {isOpen ? <FolderOpen size={16} /> : <Folder size={16} />}
+                <span className={`md:mr-2.5 transition-colors ${isActive ? "text-blue-400" : "text-yellow-500/80 group-hover:text-yellow-400"}`}>
+                    {isOpen ? <FolderOpen size={20} className="md:w-4 md:h-4" /> : <Folder size={20} className="md:w-4 md:h-4" />}
                 </span>
 
-                <span className="truncate text-sm font-medium tracking-wide">{folder.name}</span>
+                <span className="hidden md:block truncate text-sm font-medium tracking-wide">{folder.name}</span>
             </div>
 
+            {/* Children - Only show on desktop for deep tree navigation, or if expanded? 
+                If we hide children on mobile, they can't nav. 
+                Let's allow children rendering but they will also be just icons.
+            */}
             {isOpen && (
                 <div className="relative">
-                    {/* Tree Guide Line */}
+                    {/* Tree Guide Line - Desktop Only */}
                     <div
-                        className="absolute top-0 bottom-2 w-px bg-white/5"
+                        className="hidden md:block absolute top-0 bottom-2 w-px bg-white/5"
                         style={{ left: `${depth * 12 + 21}px` }}
                     />
 
                     {children.map(child => (
                         <FolderNode key={child.id} folder={child} depth={depth + 1} />
                     ))}
-                    {children.length === 0 && loaded && (
-                        <div style={{ paddingLeft: `${(depth + 1) * 12 + 36}px` }} className="py-2 text-xs text-zinc-600 italic">
-                            Empty Folder
-                        </div>
-                    )}
                 </div>
             )}
         </div>
@@ -104,58 +110,71 @@ export default function Sidebar() {
         return (
             <button
                 onClick={() => setFileTypeFilter(isActive ? 'all' : type)}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all text-sm group ${isActive
+                className={`w-full flex items-center justify-center md:justify-between px-2 md:px-3 py-2 rounded-lg transition-all text-sm group ${isActive
                     ? "bg-blue-600/20 text-blue-200 border border-blue-500/20"
                     : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
                     }`}
+                title={label}
             >
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center md:space-x-3">
                     <span className={isActive ? "text-blue-400" : "text-zinc-500 group-hover:text-zinc-400"}>{icon}</span>
-                    <span className="font-medium">{label}</span>
+                    <span className="hidden md:block font-medium">{label}</span>
                 </div>
             </button>
         );
     };
 
     return (
-        <div className="w-64 glass-panel border-r-0 border-r-white/5 flex flex-col h-full z-20 shadow-2xl backdrop-blur-xl bg-black/40">
-            <div className="p-6 pb-2 flex items-center mb-4">
-                <div className="relative w-9 h-9 mr-3 group">
+        <div className="w-16 md:w-64 glass-panel border-r-0 border-r-white/5 flex flex-col h-full z-20 shadow-2xl backdrop-blur-xl bg-black/40 transition-all duration-300">
+            {/* Logo Section */}
+            <div className="p-4 md:p-6 pb-2 flex items-center justify-center md:justify-start mb-4">
+                <div className="relative w-8 h-8 md:w-9 md:h-9 md:mr-3 group shrink-0">
                     <div className="absolute inset-0 bg-blue-500/20 blur-lg rounded-full opacity-50 group-hover:opacity-100 transition-opacity" />
                     <Image src="/logo.svg" alt="Rivault Logo" fill className="object-contain relative z-10" />
                 </div>
-                <span className="font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-zinc-400 text-xl tracking-tight">Rivault</span>
+                <span className="hidden md:block font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-zinc-400 text-xl tracking-tight">Rivault</span>
             </div>
 
+            {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto px-1 py-2 scroll-smooth">
-                <div className="flex items-center space-x-2 px-4 mb-3 text-xs font-bold text-zinc-500 uppercase tracking-widest">
-                    <HardDrive size={12} />
-                    <span>Locations</span>
+                {/* Locations Header - Mobile Icon Only */}
+                <div className="flex items-center justify-center md:justify-start space-x-0 md:space-x-2 px-2 md:px-4 mb-3 text-xs font-bold text-zinc-500 uppercase tracking-widest">
+                    <HardDrive size={16} className="md:w-3 md:h-3" />
+                    <span className="hidden md:block">Locations</span>
                 </div>
+
                 <FolderNode folder={rootFolder} />
             </div>
 
-            {/* File Type Filters TEMP SECTION - Ideally this would be searchable tags or such */}
-            <div className="px-4 py-2 border-t border-white/5">
-                <div className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3">File Types</div>
+            {/* File Type Filters */}
+            <div className="px-2 md:px-4 py-2 border-t border-white/5">
+                <div className="hidden md:block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3">File Types</div>
+                {/* Mobile Separator */}
+                <div className="md:hidden h-px bg-white/5 my-2 mx-2" />
+
                 <div className="space-y-1">
-                    <FilterButton type="image" icon={<ImageIcon size={16} />} label="Images" count="JPG, PNG..." />
-                    <FilterButton type="video" icon={<Video size={16} />} label="Videos" count="MP4, MKV..." />
-                    <FilterButton type="audio" icon={<Music size={16} />} label="Music" count="MP3, WAV..." />
-                    <FilterButton type="document" icon={<FileText size={16} />} label="Documents" count="PDF, DOC..." />
+                    <FilterButton type="image" icon={<ImageIcon size={18} className="md:w-4 md:h-4" />} label="Images" count="JPG, PNG..." />
+                    <FilterButton type="video" icon={<Video size={18} className="md:w-4 md:h-4" />} label="Videos" count="MP4, MKV..." />
+                    <FilterButton type="audio" icon={<Music size={18} className="md:w-4 md:h-4" />} label="Music" count="MP3, WAV..." />
+                    <FilterButton type="document" icon={<FileText size={18} className="md:w-4 md:h-4" />} label="Documents" count="PDF, DOC..." />
                 </div>
             </div>
 
-            <div className="p-4 mx-2 mb-2 rounded-xl bg-gradient-to-br from-white/5 to-transparent border border-white/5">
-                <div className="flex items-center justify-between text-xs text-zinc-400 mb-2">
-                    <div className="flex items-center space-x-2">
-                        <PieChart size={14} className="text-blue-400" />
-                        <span>Storage Used</span>
+            {/* Storage Section */}
+            <div className="p-2 md:p-4 mx-1 md:mx-2 mb-2 rounded-xl bg-gradient-to-br from-white/5 to-transparent border border-white/5">
+                <div className="flex items-center justify-center md:justify-between text-xs text-zinc-400 mb-0 md:mb-2">
+                    <div className="flex items-center md:space-x-2">
+                        <PieChart size={16} className="text-blue-400 md:w-3.5 md:h-3.5" />
+                        <span className="hidden md:inline">Storage Used</span>
                     </div>
                 </div>
-                <div className="flex items-end justify-between">
+                <div className="hidden md:flex items-end justify-between">
                     <span className="text-xl font-bold text-white">{formatSize(storageUsage)}</span>
                     <span className="text-[10px] text-zinc-500 font-mono mb-1">UNLIMITED</span>
+                </div>
+                {/* Mobile Usage Text */}
+                <div className="md:hidden text-[10px] text-zinc-400 text-center mt-1">
+                    {formatSize(storageUsage)}
                 </div>
             </div>
         </div>

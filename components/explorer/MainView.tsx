@@ -5,7 +5,8 @@ import { useFileSystem } from "@/components/providers/FileSystemProvider";
 import { APIFile, APIFolder, APINode, isFolder, uploadFile, createFolder, getDownloadUrl, moveNode } from "@/lib/api";
 import {
     ArrowUp, FolderPlus, UploadCloud, MoreHorizontal, RefreshCw,
-    Trash2, Edit2, FileText, Folder as FolderIcon, Music, Image as ImageIcon, Video, File, Search, ArrowLeft
+    Trash2, Edit2, FileText, Folder as FolderIcon, Music, Image as ImageIcon, Video, File, Search, ArrowLeft,
+    CheckSquare, Square, Check
 } from "lucide-react";
 import ContextMenu from "@/components/ui/ContextMenu";
 import Breadcrumb from "@/components/Breadcrumb";
@@ -34,14 +35,17 @@ export default function MainView() {
     } = useFileSystem();
 
     const [uploadProgress, setUploadProgress] = useState<{ name: string, percent: number } | null>(null);
-    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [newFolderName, setNewFolderName] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
+    const [isSelectMode, setIsSelectMode] = useState(false);
 
-    // Reset search when path changes
+    // Reset selection and search when path changes
     useEffect(() => {
         setSearchQuery("");
+        setSelectedIds(new Set());
+        setIsSelectMode(false);
     }, [currentPath]);
 
     // Filter items
@@ -51,8 +55,7 @@ export default function MainView() {
         // 1. Type Filter
         if (fileTypeFilter !== 'all') {
             res = res.filter(item => {
-                if (isFolder(item)) return false; // Hide folders when filtering by type?? Or show them? 
-                // Decision: Hide folders when specific type filter is active to show only that type of files.
+                if (isFolder(item)) return false;
                 const file = item as APIFile;
                 const ext = file.name.split('.').pop()?.toLowerCase() || '';
 
@@ -79,17 +82,18 @@ export default function MainView() {
 
     const onUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
-            const file = e.target.files[0];
-            try {
-                setUploadProgress({ name: file.name, percent: 0 });
-                await uploadFile(currentPath, file, (p) => setUploadProgress({ name: file.name, percent: p }));
-                setUploadProgress(null);
-                refresh();
-            } catch (err: any) {
-                console.error(err);
-                alert(`Upload failed: ${err.message || err}`);
-                setUploadProgress(null);
+            const files = Array.from(e.target.files);
+            for (const file of files) {
+                try {
+                    setUploadProgress({ name: file.name, percent: 0 });
+                    await uploadFile(currentPath, file, (p) => setUploadProgress({ name: file.name, percent: p }));
+                } catch (err: any) {
+                    console.error(err);
+                    alert(`Upload failed for ${file.name}: ${err.message || err}`);
+                }
             }
+            setUploadProgress(null);
+            refresh();
         }
     };
 
@@ -112,19 +116,39 @@ export default function MainView() {
 
     // --- Interaction ---
 
-    const onDoubleClick = (item: APIFile | APIFolder) => {
-        const itemId = item.id;
-        if (isFolder(item)) {
-            navigateTo(itemId, item.name);
+    const toggleSelection = (id: string, multi: boolean) => {
+        const newSet = new Set(multi ? selectedIds : []);
+        if (newSet.has(id)) {
+            newSet.delete(id);
         } else {
-            // Open in new tab which triggers download
-            window.open(getDownloadUrl(itemId), "_blank");
+            newSet.add(id);
+        }
+        setSelectedIds(newSet);
+    };
+
+    const selectAll = () => {
+        if (selectedIds.size === filteredItems.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(filteredItems.map(i => i.id)));
+        }
+    };
+
+    const onDoubleClick = (item: APIFile | APIFolder) => {
+        if (isSelectMode) return; // No double click nav in select mode? Or maybe just allow it?
+
+        if (isFolder(item)) {
+            navigateTo(item.id, item.name);
+        } else {
+            window.open(getDownloadUrl(item.id), "_blank");
         }
     };
 
     const onRightClick = (e: React.MouseEvent, item: APIFile | APIFolder) => {
         e.preventDefault();
-        setSelectedId(item.id);
+        if (!selectedIds.has(item.id)) {
+            setSelectedIds(new Set([item.id]));
+        }
         setContextMenu({
             x: e.clientX,
             y: e.clientY,
@@ -133,23 +157,28 @@ export default function MainView() {
     };
 
     const onDelete = async () => {
-        if (!selectedId) return;
-        if (confirm("Are you sure you want to delete this item?")) {
-            await handleDelete(selectedId);
-            setSelectedId(null);
+        if (selectedIds.size === 0) return;
+        if (confirm(`Are you sure you want to delete ${selectedIds.size} item(s)?`)) {
+            for (const id of selectedIds) {
+                await handleDelete(id);
+            }
+            setSelectedIds(new Set());
+            refresh();
         }
     };
 
     const onRename = async () => {
-        if (!selectedId) return;
+        if (selectedIds.size !== 1) return;
+        const [id] = Array.from(selectedIds);
         const newName = prompt("New Name:");
         if (newName) {
-            await handleRename(selectedId, newName);
+            await handleRename(id, newName);
+            refresh();
         }
     };
 
     const handleContextAction = (action: string, item: APIFile | APIFolder) => {
-        setContextMenu(null); // Close menu
+        setContextMenu(null);
 
         switch (action) {
             case 'open':
@@ -159,12 +188,15 @@ export default function MainView() {
                 window.open(getDownloadUrl(item.id), "_blank");
                 break;
             case 'rename':
-                setSelectedId(item.id);
-                // Tiny timeout to let menu close visually before prompt (browser native prompt blocks UI)
+                // Ensure only this item is selected for rename
+                setSelectedIds(new Set([item.id]));
                 setTimeout(onRename, 50);
                 break;
             case 'delete':
-                setSelectedId(item.id);
+                // Use existing selection if it includes the target, otherwise select just target
+                if (!selectedIds.has(item.id)) {
+                    setSelectedIds(new Set([item.id]));
+                }
                 setTimeout(onDelete, 50);
                 break;
         }
@@ -173,25 +205,40 @@ export default function MainView() {
     // --- Drag & Drop ---
 
     const handleDragStart = (e: React.DragEvent, item: APIFile | APIFolder) => {
+        if (!selectedIds.has(item.id)) {
+            setSelectedIds(new Set([item.id]));
+        }
         e.dataTransfer.setData("text/nodeId", item.id);
+        // Could serialize all selected IDs here for multi-move
     };
 
     const handleDrop = async (e: React.DragEvent, targetFolderId: string) => {
         e.preventDefault();
         e.stopPropagation();
-        const nodeId = e.dataTransfer.getData("text/nodeId");
-        if (nodeId && nodeId !== targetFolderId) {
-            try {
-                await moveNode(nodeId, targetFolderId);
-                refresh();
-            } catch (e: any) { alert("Failed to move: " + e.message); }
+        const draggedId = e.dataTransfer.getData("text/nodeId");
+
+        // If we have a selection, move all of them (simple implementation for now: only move the dragged one if simple drag)
+        // Ideally we iterate selectedIds.
+
+        const idsToMove = selectedIds.has(draggedId) ? Array.from(selectedIds) : [draggedId];
+
+        let movedCount = 0;
+        for (const id of idsToMove) {
+            if (id && id !== targetFolderId) {
+                try {
+                    await moveNode(id, targetFolderId);
+                    movedCount++;
+                } catch (e: any) { console.error("Failed to move", id, e); }
+            }
         }
+
+        if (movedCount > 0) refresh();
     };
 
     return (
         <div className="flex-1 flex flex-col relative overflow-hidden backdrop-blur-sm bg-black/30" onClick={() => setContextMenu(null)}>
             {/* Toolbar */}
-            <div className="h-16 flex items-center px-6 space-x-4 border-b border-white/5 bg-transparent sticky top-0 z-30">
+            <div className="h-16 flex items-center px-4 md:px-6 space-x-2 md:space-x-4 border-b border-white/5 bg-transparent sticky top-0 z-30">
                 <div className="flex-1 overflow-hidden flex items-center">
                     <button
                         onClick={goUp}
@@ -207,14 +254,14 @@ export default function MainView() {
                     <Breadcrumb items={breadcrumbs} onNavigate={navigateToBreadcrumb} />
                 </div>
 
-                <div className="h-6 w-px bg-white/10 mx-2" />
+                <div className="h-6 w-px bg-white/10 mx-2 hidden md:block" />
 
                 {/* Search Input */}
-                <div className="relative group w-64 max-w-[200px] hidden md:block transition-all focus-within:max-w-[300px]">
+                <div className="relative group w-32 md:w-64 max-w-[200px] transition-all focus-within:max-w-[300px]">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-blue-400 transition-colors" size={16} />
                     <input
                         type="text"
-                        placeholder="Search this folder"
+                        placeholder="Search"
                         className="w-full bg-black/20 border border-white/10 text-zinc-200 text-sm rounded-xl pl-9 pr-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/30 focus:bg-black/40 transition-all placeholder-zinc-600"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
@@ -223,29 +270,45 @@ export default function MainView() {
 
                 <div className="h-6 w-px bg-white/10 mx-2 hidden md:block" />
 
-                <button onClick={onCreateFolderClick} className="glass-button px-4 py-2 rounded-xl text-zinc-200 hover:text-white text-sm font-medium flex items-center space-x-2">
-                    <FolderPlus size={18} className="text-blue-400" />
-                    <span>New Folder</span>
+                {/* Selection Controls */}
+                <button
+                    onClick={() => setIsSelectMode(!isSelectMode)}
+                    className={`p-2 rounded-xl transition-all ${isSelectMode ? "bg-blue-600/20 text-blue-400" : "text-zinc-400 hover:text-white"}`}
+                    title="Toggle Selection Mode"
+                >
+                    <CheckSquare size={18} />
                 </button>
 
-                <label className="glass-button px-4 py-2 rounded-xl text-zinc-200 hover:text-white text-sm font-medium flex items-center space-x-2 cursor-pointer shadow-lg shadow-purple-900/10">
-                    <UploadCloud size={18} className="text-purple-400" />
-                    <span>Upload</span>
-                    <input type="file" className="hidden" onChange={onUpload} disabled={!!uploadProgress} />
-                </label>
-
-                <div className="flex-shrink-0" />
-
-                {selectedId && (
+                {selectedIds.size > 0 ? (
                     <div className="flex items-center space-x-2 animate-fade-in bg-zinc-900/80 px-3 py-1.5 rounded-xl border border-white/5">
-                        <button onClick={onRename} className="p-2 hover:bg-white/10 rounded-lg text-zinc-300 transition-colors" title="Rename">
-                            <Edit2 size={16} />
-                        </button>
+                        <span className="text-xs font-bold text-blue-200 mr-2">{selectedIds.size} Selected</span>
+                        {selectedIds.size === 1 && (
+                            <button onClick={onRename} className="p-2 hover:bg-white/10 rounded-lg text-zinc-300 transition-colors" title="Rename">
+                                <Edit2 size={16} />
+                            </button>
+                        )}
                         <div className="w-px h-4 bg-white/10" />
                         <button onClick={onDelete} className="p-2 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors" title="Delete">
                             <Trash2 size={16} />
                         </button>
                     </div>
+                ) : (
+                    <>
+                        <button onClick={onCreateFolderClick} className="hidden md:flex glass-button px-4 py-2 rounded-xl text-zinc-200 hover:text-white text-sm font-medium items-center space-x-2">
+                            <FolderPlus size={18} className="text-blue-400" />
+                            <span>New Folder</span>
+                        </button>
+                        {/* Mobile New Folder Icon */}
+                        <button onClick={onCreateFolderClick} className="md:hidden p-2 rounded-xl text-zinc-200 hover:text-white">
+                            <FolderPlus size={20} className="text-blue-400" />
+                        </button>
+
+                        <label className="glass-button px-4 py-2 rounded-xl text-zinc-200 hover:text-white text-sm font-medium flex items-center space-x-2 cursor-pointer shadow-lg shadow-purple-900/10">
+                            <UploadCloud size={18} className="text-purple-400" />
+                            <span className="hidden md:inline">Upload</span>
+                            <input type="file" multiple className="hidden" onChange={onUpload} disabled={!!uploadProgress} />
+                        </label>
+                    </>
                 )}
 
                 <button onClick={refresh} className="p-2 hover:bg-white/10 rounded-full text-zinc-400 transition-colors">
@@ -267,7 +330,7 @@ export default function MainView() {
             )}
 
             {/* File List */}
-            <div className="flex-1 overflow-auto p-6 scroll-smooth">
+            <div className="flex-1 overflow-auto p-4 md:p-6 scroll-smooth">
                 {isLoading && (
                     <div className="flex flex-col items-center justify-center h-64 text-zinc-500 animate-pulse">
                         <div className="w-12 h-12 rounded-full border-2 border-zinc-700 border-t-zinc-400 animate-spin mb-4" />
@@ -287,12 +350,20 @@ export default function MainView() {
 
                 {!isLoading && !error && (
                     <div className="w-full">
-                        <div className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-4 px-4 py-2 text-xs font-semibold uppercase text-zinc-500 tracking-wider mb-2 border-b border-white/5">
+                        {/* Header Row */}
+                        <div className="grid grid-cols-[auto_auto_1fr_auto_auto] md:grid-cols-[auto_auto_1fr_auto_auto_auto] gap-4 px-4 py-2 text-xs font-semibold uppercase text-zinc-500 tracking-wider mb-2 border-b border-white/5 items-center">
+                            <div className="w-6 flex justify-center">
+                                {isSelectMode && (
+                                    <button onClick={selectAll} className="text-zinc-500 hover:text-white transition-colors">
+                                        {selectedIds.size === filteredItems.length && filteredItems.length > 0 ? <CheckSquare size={16} /> : <Square size={16} />}
+                                    </button>
+                                )}
+                            </div>
                             <div className="w-8"></div>
                             <div>Name</div>
-                            <div className="w-24">Type</div>
-                            <div className="w-24">Size</div>
-                            <div className="w-32">Modified</div>
+                            <div className="w-24 hidden md:block">Type</div>
+                            <div className="w-20 md:w-24 text-right md:text-left">Size</div>
+                            <div className="w-24 hidden md:block">Modified</div>
                         </div>
 
                         <div className="space-y-1">
@@ -313,12 +384,29 @@ export default function MainView() {
                             )}
 
                             {filteredItems.map(item => {
-                                const isSel = selectedId === item.id;
+                                const isSel = selectedIds.has(item.id);
                                 const isDir = isFolder(item);
                                 return (
                                     <div
                                         key={item.id}
-                                        onClick={(e) => { e.stopPropagation(); setSelectedId(item.id); }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            // Usage logic:
+                                            // Select Mode ON: click toggles selection
+                                            // Select Mode OFF: 
+                                            //   - Click selects ONLY this item
+                                            //   - Ctrl/Cmd+Click toggles this item
+                                            //   - Shift+Click (TODO: range select, for now just add)
+                                            if (isSelectMode || e.ctrlKey || e.metaKey) {
+                                                toggleSelection(item.id, true);
+                                            } else {
+                                                if (isSel && selectedIds.size === 1) {
+                                                    // Already selected single, do nothing (or deselect?)
+                                                } else {
+                                                    setSelectedIds(new Set([item.id]));
+                                                }
+                                            }
+                                        }}
                                         onDoubleClick={() => onDoubleClick(item)}
                                         onContextMenu={(e) => onRightClick(e, item)}
                                         draggable
@@ -329,11 +417,20 @@ export default function MainView() {
                                         onDrop={(e) => {
                                             if (isDir) handleDrop(e, item.id);
                                         }}
-                                        className={`group grid grid-cols-[auto_1fr_auto_auto_auto] gap-4 items-center px-4 py-3 rounded-xl cursor-pointer select-none transition-all duration-200 ${isSel
+                                        className={`group grid grid-cols-[auto_auto_1fr_auto_auto] md:grid-cols-[auto_auto_1fr_auto_auto_auto] gap-4 items-center px-4 py-3 rounded-xl cursor-pointer select-none transition-all duration-200 ${isSel
                                             ? "bg-blue-600/20 shadow-lg shadow-blue-900/10 ring-1 ring-blue-500/30"
                                             : "hover:bg-white/5"
                                             }`}
                                     >
+                                        <div className="w-6 flex justify-center">
+                                            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${isSel
+                                                ? "bg-blue-500 border-blue-500"
+                                                : "border-zinc-700 group-hover:border-zinc-500"
+                                                } ${!isSel && !isSelectMode ? "opacity-0 group-hover:opacity-100" : "opacity-100"}`}>
+                                                {isSel && <Check size={12} className="text-white" />}
+                                            </div>
+                                        </div>
+
                                         <div className="w-8 flex justify-center">
                                             {isDir ? (
                                                 <FolderIcon size={20} className="text-yellow-500/80 group-hover:text-yellow-400 transition-colors" />
@@ -341,12 +438,12 @@ export default function MainView() {
                                                 getFileIcon((item as APIFile).name)
                                             )}
                                         </div>
-                                        <div className={`font-medium ${isSel ? "text-blue-100" : "text-zinc-300 group-hover:text-white"}`}>
+                                        <div className={`font-medium truncate ${isSel ? "text-blue-100" : "text-zinc-300 group-hover:text-white"}`}>
                                             {item.name}
                                         </div>
-                                        <div className="w-24 text-sm text-zinc-500">{isDir ? 'Folder' : 'File'}</div>
-                                        <div className="w-24 text-sm text-zinc-500">{isDir ? '-' : formatSize((item as APIFile).size)}</div>
-                                        <div className="w-32 text-sm text-zinc-600 group-hover:text-zinc-500">
+                                        <div className="w-24 text-sm text-zinc-500 hidden md:block">{isDir ? 'Folder' : 'File'}</div>
+                                        <div className="w-20 md:w-24 text-sm text-zinc-500 text-right md:text-left">{isDir ? '-' : formatSize((item as APIFile).size)}</div>
+                                        <div className="w-32 text-sm text-zinc-600 group-hover:text-zinc-500 hidden md:block">
                                             {isDir
                                                 ? new Date(item.createdAt).toLocaleDateString()
                                                 // @ts-ignore

@@ -56,6 +56,25 @@ export default {
             return response;
         }
 
+        // Stats Endpoint
+        if (url.pathname === '/api/stats' && request.method === 'GET') {
+            const userId = request.headers.get('X-Rivault-User') || 'default';
+            const id = env.FS_DO.idFromName(userId);
+            const stub = env.FS_DO.get(id);
+
+            // Forward to DO
+            // Note: URL must be correct for DO routing
+            const newRequest = new Request(url.toString(), {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const response = await stub.fetch(newRequest);
+
+            const newResponse = new Response(response.body, response);
+            newResponse.headers.set('Access-Control-Allow-Origin', '*');
+            return newResponse;
+        }
+
         // Identify User
         const userId = request.headers.get('X-Rivault-User') || 'default';
 
@@ -114,6 +133,78 @@ export default {
             } catch (err: any) {
                 return new Response(`Upload error: ${err.message}`, { status: 500, headers: corsHeaders });
             }
+        }
+
+        // --- Handle File Download ---
+        // GET /api/files/:id/download
+        if (request.method === 'GET' && url.pathname.includes('/download')) {
+            const fileId = url.pathname.split('/')[3];
+
+            if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) {
+                return new Response('Server unconfigured', { status: 503, headers: corsHeaders });
+            }
+
+            // 1. Get File Metadata from DO
+            const metaReq = new Request(url.toString().replace('/download', ''), {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const metaRes = await stub.fetch(metaReq);
+
+            if (!metaRes.ok) {
+                return new Response('File not found', { status: 404, headers: corsHeaders });
+            }
+
+            const file: any = await metaRes.json();
+            const chunks = file.chunks || [];
+
+            if (chunks.length === 0) {
+                return new Response('File has no content', { status: 404, headers: corsHeaders });
+            }
+
+            // 2. Stream Response
+            const { readable, writable } = new TransformStream();
+            const writer = writable.getWriter();
+
+            // Background streaming task
+            ctx.waitUntil((async () => {
+                try {
+                    // Sort chunks by order just in case
+                    chunks.sort((a: any, b: any) => a.order - b.order);
+
+                    for (const chunk of chunks) {
+                        const stream = await import('./telegram').then(m => m.downloadChunk(chunk.storageReference, {
+                            botToken: env.TELEGRAM_BOT_TOKEN,
+                            chatId: env.TELEGRAM_CHAT_ID
+                        }));
+
+                        if (stream) {
+                            // Pipe chunk stream to main response stream
+                            const reader = stream.getReader();
+                            while (true) {
+                                const { done, value } = await reader.read();
+                                if (done) break;
+                                await writer.write(value);
+                            }
+                        }
+                    }
+                    await writer.close();
+                } catch (e) {
+                    console.error('Download stream error:', e);
+                    await writer.abort(e);
+                }
+            })());
+
+            const responseHeaders = new Headers(corsHeaders);
+            responseHeaders.set('Content-Disposition', `attachment; filename="${file.name}"`);
+            responseHeaders.set('Content-Type', file.mimeType || 'application/octet-stream');
+            if (file.size) {
+                responseHeaders.set('Content-Length', file.size.toString());
+            }
+
+            return new Response(readable, {
+                headers: responseHeaders
+            });
         }
 
         // Forward other requests

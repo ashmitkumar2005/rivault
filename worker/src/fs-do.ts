@@ -8,6 +8,13 @@ import { Folder, File, Chunk } from './types';
 const KEY_ROOT = 'root';
 const KEY_PREFIX_NODE = 'node:'; // Followed by ID
 const KEY_PREFIX_CHILDREN = 'children:'; // Followed by ParentID
+const KEY_STATS = 'stats';
+
+interface StorageStats {
+    totalUsed: number;
+    fileCount: number;
+    folderCount: number;
+}
 
 // Errors
 class ClientError extends Error {
@@ -59,6 +66,14 @@ export class FileSystemDO {
                 return Response.json(file);
             }
 
+            if (method === 'GET' && path.startsWith('/api/files/')) {
+                // Get File Metadata (e.g. for download)
+                const id = path.split('/')[3];
+                const node = await this.getNode(id);
+                if (!node || !('chunks' in node)) return new Response('File not found', { status: 404 });
+                return Response.json(node);
+            }
+
             if (method === 'POST' && path.startsWith('/api/nodes/') && path.endsWith('/move')) { // /api/nodes/:id/move
                 // Move Node
                 const id = path.split('/')[3]; // /api/nodes/[id]/move
@@ -86,6 +101,12 @@ export class FileSystemDO {
                 return Response.json({ rootId: this.rootId });
             }
 
+            // Stats API
+            if (method === 'GET' && path === '/api/stats') {
+                const stats = await this.getStats();
+                return Response.json(stats);
+            }
+
             // Chunk Upload (Update File Metadata)
             if (method === 'POST' && path.startsWith('/api/files/') && path.endsWith('/chunks')) {
                 const id = path.split('/')[3];
@@ -108,9 +129,16 @@ export class FileSystemDO {
 
     // 1. Initialization
     private async ensureInitialized() {
-        if (this.rootId) return;
+        if (this.rootId) {
+            // Just verifying stats exist, if not, migrate (lazy migration)
+            // But ensureInitialized is called every request, so we should keep it cheap.
+            // We can check a memory flag or similar?
+            // For now, let's just trust that if rootId exists, we are good, OR we check stats once.
+            return;
+        }
 
         this.rootId = await this.state.storage.get<string>(KEY_ROOT) || null;
+        let stats = await this.state.storage.get<StorageStats>(KEY_STATS);
 
         if (!this.rootId) {
             // First time boot
@@ -125,6 +153,22 @@ export class FileSystemDO {
             await this.state.storage.put(KEY_ROOT, rootId);
             await this.saveNode(rootFolder);
             this.rootId = rootId;
+            stats = { totalUsed: 0, fileCount: 0, folderCount: 1 };
+            await this.state.storage.put(KEY_STATS, stats);
+        } else if (!stats) {
+            // Migration: Calculate stats from existing nodes
+            stats = { totalUsed: 0, fileCount: 0, folderCount: 0 };
+            const nodes = await this.state.storage.list<Folder | File>({ prefix: KEY_PREFIX_NODE });
+
+            for (const node of nodes.values()) {
+                if ('chunks' in node) { // File
+                    stats.fileCount++;
+                    stats.totalUsed += node.size;
+                } else { // Folder
+                    stats.folderCount++;
+                }
+            }
+            await this.state.storage.put(KEY_STATS, stats);
         }
     }
 
@@ -162,6 +206,18 @@ export class FileSystemDO {
         }
     }
 
+    private async updateStats(delta: Partial<StorageStats>) {
+        let stats = await this.state.storage.get<StorageStats>(KEY_STATS) || { totalUsed: 0, fileCount: 0, folderCount: 0 };
+        if (delta.totalUsed) stats.totalUsed += delta.totalUsed;
+        if (delta.fileCount) stats.fileCount += delta.fileCount;
+        if (delta.folderCount) stats.folderCount += delta.folderCount;
+        await this.state.storage.put(KEY_STATS, stats);
+    }
+
+    async getStats(): Promise<StorageStats> {
+        return await this.state.storage.get<StorageStats>(KEY_STATS) || { totalUsed: 0, fileCount: 0, folderCount: 0 };
+    }
+
     // 3. Filesystem Operations
 
     async listFolder(folderId: string): Promise<(Folder | File)[]> {
@@ -170,14 +226,14 @@ export class FileSystemDO {
 
         // Batch get
         const keys = childrenIds.map(id => `${KEY_PREFIX_NODE}${id}`);
+        // @ts-ignore
         const nodesMap = await this.state.storage.get<Folder | File>(keys);
         return Array.from(nodesMap.values());
     }
 
     async createFolder(parentId: string, name: string): Promise<Folder> {
         const parent = await this.getNode(parentId);
-        if (!parent || !('createdAt' in parent)) { // exists and is a folder? (Files also have createdAt, but checking type is harder here without 'parentId' logic, assuming parentId points to folder)
-            // Strictly check if it is a folder by checking it DOES NOT have 'chunks'
+        if (!parent || !('createdAt' in parent)) {
             if (!parent) throw new ClientError(`Parent ${parentId} not found`, 404);
             if ('chunks' in parent) throw new ClientError(`Parent ${parentId} is a file`, 400);
         }
@@ -196,14 +252,10 @@ export class FileSystemDO {
             createdAt: Date.now(),
         };
 
-        // Transactional-ish: Put node AND update parent's children list
-        // DO puts are atomic per call, but mult-key puts are atomic.
-        // We need to read children, modify, write children AND write node.
-        // The read-modify-write on children list is safe because DO is single-threaded for this object instance.
-
         await this.state.blockConcurrencyWhile(async () => {
             await this.saveNode(newFolder);
             await this.addChild(parentId, id);
+            await this.updateStats({ folderCount: 1 });
         });
 
         return newFolder;
@@ -211,7 +263,7 @@ export class FileSystemDO {
 
     async createFile(parentId: string, meta: { name: string, size: number, mimeType: string, encryption?: any }): Promise<File> {
         const parent = await this.getNode(parentId);
-        if (!parent || 'chunks' in parent) throw new ClientError(`Invalid parent folder`, 400); // Check if folder
+        if (!parent || 'chunks' in parent) throw new ClientError(`Invalid parent folder`, 400);
 
         const siblings = await this.listFolder(parentId);
         if (siblings.some(s => s.name === meta.name)) {
@@ -235,6 +287,7 @@ export class FileSystemDO {
         await this.state.blockConcurrencyWhile(async () => {
             await this.saveNode(newFile);
             await this.addChild(parentId, id);
+            await this.updateStats({ fileCount: 1, totalUsed: meta.size });
         });
 
         return newFile;
@@ -281,7 +334,7 @@ export class FileSystemDO {
             while (current.id !== this.rootId && current.parentId) {
                 if (current.id === id) throw new ClientError("Cycle detected", 400);
                 const next = await this.getNode(current.parentId);
-                if (!next) break; // Should not happen
+                if (!next) break;
                 current = next;
             }
         }
@@ -316,6 +369,10 @@ export class FileSystemDO {
             }
             // Delete children list
             await this.state.storage.delete(`${KEY_PREFIX_CHILDREN}${id}`);
+            await this.updateStats({ folderCount: -1 });
+        } else {
+            // File
+            await this.updateStats({ fileCount: -1, totalUsed: -node.size });
         }
 
         // Remove from parent list

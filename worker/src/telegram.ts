@@ -45,3 +45,25 @@ export async function uploadChunk(
         size: data.length
     };
 }
+
+export async function downloadChunk(
+    storageReference: string,
+    config: TelegramConfig
+): Promise<ReadableStream | null> {
+    const fileId = storageReference.split(':')[1];
+
+    // 1. Get File Path
+    const res = await fetch(`https://api.telegram.org/bot${config.botToken}/getFile?file_id=${fileId}`);
+    if (!res.ok) return null;
+
+    const json: any = await res.json();
+    if (!json.ok) return null;
+
+    const filePath = json.result.file_path;
+
+    // 2. Download Stream
+    const fileRes = await fetch(`https://api.telegram.org/file/bot${config.botToken}/${filePath}`);
+    if (!fileRes.ok || !fileRes.body) return null;
+
+    return fileRes.body;
+}

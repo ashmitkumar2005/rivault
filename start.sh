@@ -1,35 +1,36 @@
 #!/bin/bash
 
 # Kill any existing processes
-pkill -f "rivault-backend" || true
+pkill -f "wrangler" || true
 pkill -f "next-server" || true
+pkill -f "rivault-backend" || true
 
 echo "🚀 Starting Rivault Local Production..."
 
-# 1. Start Backend
-echo "📦 Starting Backend (Port 3001)..."
-# Use 'rivault-backend' as process name for easier killing later
-export PROCESS_TITLE="rivault-backend"
-npx ts-node -r dotenv/config backend/api/server.ts &
-BACKEND_PID=$!
+# 1. Start Cloudflare Worker (Backend)
+echo "📦 Starting Worker (Port 8787)..."
+cd worker
+npm run dev > ../worker.log 2>&1 &
+WORKER_PID=$!
+cd ..
 
-# Wait for backend to be ready
+# Wait for worker to be ready
 sleep 3
 
 # 2. Start Frontend
 echo "💻 Starting Frontend (Port 3000)..."
 # Next.js start command
-npm run dev &
+npm run dev > frontend.log 2>&1 &
 FRONTEND_PID=$!
 
 echo "✅ Rivault is running!"
 echo "   - Frontend: http://localhost:3000"
-echo "   - Backend:  http://localhost:3001"
+echo "   - Worker:   http://localhost:8787"
 echo ""
 echo "Press [CTRL+C] to stop both servers."
 
 # Handle shutdown
-trap "kill $BACKEND_PID $FRONTEND_PID; exit" SIGINT SIGTERM
+trap "kill $WORKER_PID $FRONTEND_PID; exit" SIGINT SIGTERM
 
 # Keep script running
 wait

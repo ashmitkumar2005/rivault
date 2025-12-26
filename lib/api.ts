@@ -129,6 +129,7 @@ export async function moveNode(nodeId: string, newParentId: string): Promise<voi
 }
 
 export async function getStorageStats(): Promise<any> {
-    // Not implemented in Worker yet, stubbing
-    return { totalUsed: 0, fileCount: 0, folderCount: 0 };
+    const res = await fetch(`${API_URL}/stats`, { headers: getHeaders() });
+    if (!res.ok) throw new Error('Failed to get stats');
+    return res.json();
 }

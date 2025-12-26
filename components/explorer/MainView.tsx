@@ -39,6 +39,7 @@ export default function MainView() {
 
     const [uploadProgress, setUploadProgress] = useState<{ name: string, percent: number } | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [focusedId, setFocusedId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [isSelectMode, setIsSelectMode] = useState(false);
 
@@ -52,6 +53,7 @@ export default function MainView() {
     useEffect(() => {
         setSearchQuery("");
         setSelectedIds(new Set());
+        setFocusedId(null);
         setIsSelectMode(false);
     }, [currentPath]);
 
@@ -145,8 +147,16 @@ export default function MainView() {
 
     const onRightClick = (e: React.MouseEvent, item: APIFile | APIFolder) => {
         e.preventDefault();
+        // If not selected, select it? Or just focus it?
+        // Standard: Right click selects/focuses the target.
         if (!selectedIds.has(item.id)) {
-            setSelectedIds(new Set([item.id]));
+            setFocusedId(item.id);
+            // Should we clear selection? Probably yes, unless Ctrl held.
+            // But existing behavior was "Adding to selection".
+            // Let's stick to: "Right Click on unselected item -> Focus it, Clear Selection"
+            if (selectedIds.size > 0 && !selectedIds.has(item.id)) {
+                setSelectedIds(new Set());
+            }
         }
         setContextMenu({
             x: e.clientX,
@@ -204,9 +214,6 @@ export default function MainView() {
                 break;
             case 'rename':
                 setSelectedIds(new Set([item.id]));
-                // We need to wait for state update? No, setSelectedIds is sync enough for the next render, 
-                // but initiateRename reads from selectedIds. Better to explicitly pass ID or set generic state.
-                // Actually initiateRename reads state. Let's just set the modal state directly here safely.
                 setRenameModal({ isOpen: true, id: item.id, name: item.name });
                 break;
             case 'delete':
@@ -223,7 +230,9 @@ export default function MainView() {
     // --- Drag & Drop ---
 
     const handleDragStart = (e: React.DragEvent, item: APIFile | APIFolder) => {
+        // Auto select on drag? Maybe not if we want strict separation
         if (!selectedIds.has(item.id)) {
+            // If dragging an unselected item, select it temporarily?
             setSelectedIds(new Set([item.id]));
         }
         e.dataTransfer.setData("text/nodeId", item.id);
@@ -233,9 +242,7 @@ export default function MainView() {
         e.preventDefault();
         e.stopPropagation();
         const draggedId = e.dataTransfer.getData("text/nodeId");
-
         const idsToMove = selectedIds.has(draggedId) ? Array.from(selectedIds) : [draggedId];
-
         let movedCount = 0;
         for (const id of idsToMove) {
             if (id && id !== targetFolderId) {
@@ -248,17 +255,24 @@ export default function MainView() {
                 }
             }
         }
-
         if (movedCount > 0) refresh();
     };
 
     return (
-        <div className="flex-1 flex flex-col relative overflow-hidden backdrop-blur-sm bg-black/30" onClick={() => setContextMenu(null)}>
+        <div
+            className="flex-1 flex flex-col relative overflow-hidden backdrop-blur-sm bg-black/30"
+            onClick={() => {
+                setContextMenu(null);
+                setFocusedId(null);
+                // Should clicking empty space clear selection?
+                if (!isSelectMode) setSelectedIds(new Set());
+            }}
+        >
             {/* Toolbar */}
             <div className="h-16 flex items-center px-4 md:px-6 space-x-2 md:space-x-4 border-b border-white/5 bg-transparent sticky top-0 z-30">
                 <div className="flex-1 overflow-hidden flex items-center">
                     <button
-                        onClick={goUp}
+                        onClick={(e) => { e.stopPropagation(); goUp(); }}
                         disabled={breadcrumbs.length <= 1}
                         className={`p-2 mr-2 rounded-full transition-colors ${breadcrumbs.length <= 1
                             ? "text-zinc-600 cursor-not-allowed opacity-50"
@@ -282,6 +296,7 @@ export default function MainView() {
                         className="w-full bg-black/20 border border-white/10 text-zinc-200 text-sm rounded-xl pl-9 pr-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/30 focus:bg-black/40 transition-all placeholder-zinc-600"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
                     />
                 </div>
 
@@ -289,7 +304,7 @@ export default function MainView() {
 
                 {/* Selection Controls */}
                 <button
-                    onClick={() => setIsSelectMode(!isSelectMode)}
+                    onClick={(e) => { e.stopPropagation(); setIsSelectMode(!isSelectMode); }}
                     className={`p-2 rounded-xl transition-all ${isSelectMode ? "bg-blue-600/20 text-blue-400" : "text-zinc-400 hover:text-white"}`}
                     title="Toggle Selection Mode"
                 >
@@ -297,7 +312,7 @@ export default function MainView() {
                 </button>
 
                 {selectedIds.size > 0 ? (
-                    <div className="flex items-center space-x-2 animate-fade-in bg-zinc-900/80 px-3 py-1.5 rounded-xl border border-white/5">
+                    <div className="flex items-center space-x-2 animate-fade-in bg-zinc-900/80 px-3 py-1.5 rounded-xl border border-white/5" onClick={e => e.stopPropagation()}>
                         <span className="text-xs font-bold text-blue-200 mr-2">{selectedIds.size} Selected</span>
                         {selectedIds.size === 1 && (
                             <button onClick={initiateRename} className="p-2 hover:bg-white/10 rounded-lg text-zinc-300 transition-colors" title="Rename">
@@ -311,16 +326,14 @@ export default function MainView() {
                     </div>
                 ) : (
                     <>
-                        <button onClick={() => setIsCreateOpen(true)} className="hidden md:flex glass-button px-4 py-2 rounded-xl text-zinc-200 hover:text-white text-sm font-medium items-center space-x-2">
+                        <button onClick={(e) => { e.stopPropagation(); setIsCreateOpen(true); }} className="hidden md:flex glass-button px-4 py-2 rounded-xl text-zinc-200 hover:text-white text-sm font-medium items-center space-x-2">
                             <FolderPlus size={18} className="text-blue-400" />
                             <span>New Folder</span>
                         </button>
-                        {/* Mobile New Folder Icon */}
-                        <button onClick={() => setIsCreateOpen(true)} className="md:hidden p-2 rounded-xl text-zinc-200 hover:text-white">
+                        <button onClick={(e) => { e.stopPropagation(); setIsCreateOpen(true); }} className="md:hidden p-2 rounded-xl text-zinc-200 hover:text-white">
                             <FolderPlus size={20} className="text-blue-400" />
                         </button>
-
-                        <label className="glass-button px-4 py-2 rounded-xl text-zinc-200 hover:text-white text-sm font-medium flex items-center space-x-2 cursor-pointer shadow-lg shadow-purple-900/10">
+                        <label className="glass-button px-4 py-2 rounded-xl text-zinc-200 hover:text-white text-sm font-medium flex items-center space-x-2 cursor-pointer shadow-lg shadow-purple-900/10" onClick={e => e.stopPropagation()}>
                             <UploadCloud size={18} className="text-purple-400" />
                             <span className="hidden md:inline">Upload</span>
                             <input type="file" multiple className="hidden" onChange={onUpload} disabled={!!uploadProgress} />
@@ -328,7 +341,7 @@ export default function MainView() {
                     </>
                 )}
 
-                <button onClick={refresh} className="p-2 hover:bg-white/10 rounded-full text-zinc-400 transition-colors">
+                <button onClick={(e) => { e.stopPropagation(); refresh(); }} className="p-2 hover:bg-white/10 rounded-full text-zinc-400 transition-colors">
                     <RefreshCw size={18} />
                 </button>
             </div>
@@ -371,7 +384,7 @@ export default function MainView() {
                         <div className="grid grid-cols-[auto_auto_1fr_auto_auto] md:grid-cols-[auto_auto_1fr_auto_auto_auto] gap-4 px-4 py-2 text-xs font-semibold uppercase text-zinc-500 tracking-wider mb-2 border-b border-white/5 items-center">
                             <div className="w-6 flex justify-center">
                                 {isSelectMode && (
-                                    <button onClick={selectAll} className="text-zinc-500 hover:text-white transition-colors">
+                                    <button onClick={(e) => { e.stopPropagation(); selectAll(); }} className="text-zinc-500 hover:text-white transition-colors">
                                         {selectedIds.size === filteredItems.length && filteredItems.length > 0 ? <CheckSquare size={16} /> : <Square size={16} />}
                                     </button>
                                 )}
@@ -402,23 +415,25 @@ export default function MainView() {
 
                             {filteredItems.map(item => {
                                 const isSel = selectedIds.has(item.id);
+                                const isFocused = focusedId === item.id;
                                 const isDir = isFolder(item);
                                 return (
                                     <div
                                         key={item.id}
                                         onClick={(e) => {
                                             e.stopPropagation();
+
+                                            // 1. If Select Mode or Ctrl Key -> Toggle Selection
                                             if (isSelectMode || e.ctrlKey || e.metaKey) {
                                                 toggleSelection(item.id, true);
+                                                setFocusedId(null);
                                             } else {
-                                                if (isSel && selectedIds.size === 1) {
-                                                    // Already selected single
-                                                } else {
-                                                    setSelectedIds(new Set([item.id]));
-                                                }
+                                                // 2. Normal Click -> Focus Item, Clear Selection
+                                                setFocusedId(item.id);
+                                                if (selectedIds.size > 0) setSelectedIds(new Set());
                                             }
                                         }}
-                                        onDoubleClick={() => onDoubleClick(item)}
+                                        onDoubleClick={(e) => { e.stopPropagation(); onDoubleClick(item); }}
                                         onContextMenu={(e) => onRightClick(e, item)}
                                         draggable
                                         onDragStart={(e) => handleDragStart(e, item)}
@@ -428,16 +443,27 @@ export default function MainView() {
                                         onDrop={(e) => {
                                             if (isDir) handleDrop(e, item.id);
                                         }}
-                                        className={`group grid grid-cols-[auto_auto_1fr_auto_auto] md:grid-cols-[auto_auto_1fr_auto_auto_auto] gap-4 items-center px-4 py-3 rounded-xl cursor-pointer select-none transition-all duration-200 ${isSel
-                                            ? "bg-blue-600/20 shadow-lg shadow-blue-900/10 ring-1 ring-blue-500/30"
-                                            : "hover:bg-white/5"
+                                        className={`group grid grid-cols-[auto_auto_1fr_auto_auto] md:grid-cols-[auto_auto_1fr_auto_auto_auto] gap-4 items-center px-4 py-3 rounded-xl cursor-pointer select-none transition-all duration-200 
+                                            ${isSel
+                                                ? "bg-blue-600/20 shadow-lg shadow-blue-900/10 ring-1 ring-blue-500/30"
+                                                : isFocused
+                                                    ? "bg-white/10 ring-1 ring-white/10"
+                                                    : "hover:bg-white/5"
                                             }`}
                                     >
                                         <div className="w-6 flex justify-center">
-                                            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${isSel
-                                                ? "bg-blue-500 border-blue-500"
-                                                : "border-zinc-700 group-hover:border-zinc-500"
-                                                } ${!isSel && !isSelectMode ? "opacity-0 group-hover:opacity-100" : "opacity-100"}`}>
+                                            <div
+                                                className={`w-4 h-4 rounded border flex items-center justify-center transition-all cursor-pointer z-10 
+                                                    ${isSel
+                                                        ? "bg-blue-500 border-blue-500"
+                                                        : "border-zinc-700 hover:border-zinc-500 bg-black/40"
+                                                    } 
+                                                    ${!isSel && !isSelectMode && !isFocused ? "opacity-0 group-hover:opacity-100" : "opacity-100"}`}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleSelection(item.id, true);
+                                                }}
+                                            >
                                                 {isSel && <Check size={12} className="text-white" />}
                                             </div>
                                         </div>
@@ -449,7 +475,7 @@ export default function MainView() {
                                                 getFileIcon((item as APIFile).name)
                                             )}
                                         </div>
-                                        <div className={`font-medium truncate ${isSel ? "text-blue-100" : "text-zinc-300 group-hover:text-white"}`}>
+                                        <div className={`font-medium truncate ${isSel ? "text-blue-100" : isFocused ? "text-white" : "text-zinc-300 group-hover:text-white"}`}>
                                             {item.name}
                                         </div>
                                         <div className="w-24 text-sm text-zinc-500 hidden md:block">{isDir ? 'Folder' : 'File'}</div>

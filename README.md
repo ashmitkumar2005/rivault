@@ -2,6 +2,14 @@
 
 Rivault is a private, crash-safe cloud storage system that provides a personal filesystem interface over arbitrary storage backends. By decoupling metadata management from binary storage, it offers rigorous privacy guarantees and architectural flexibility, allowing users to turn commodity platforms (like Telegram) into secure, infinite storage drives.
 
+
+<img width="1920" height="1080" alt="Screenshot_20251228_184154" src="https://github.com/user-attachments/assets/78b2ea86-cc89-4703-95c2-03320f5ce1de" />
+
+
+<img width="1920" height="1080" alt="Screenshot_20251228_184205" src="https://github.com/user-attachments/assets/ac495789-b1e3-4002-9f6a-80716312f8cd" />
+
+
+
 ## Key Properties
 
 *   **Crash-Safe Metadata**: Uses strict "Storage-First" write ordering to prevent filesystem corruption during failures.

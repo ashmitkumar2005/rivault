@@ -16,7 +16,7 @@ export async function createZip(
     return new Promise((resolve, reject) => {
         fflate.zip(zipData, { level: options.level ?? 6, password: options.password } as any, (err, data) => {
             if (err) reject(err);
-            else resolve(new Blob([data], { type: 'application/zip' }));
+            else resolve(new Blob([data as any], { type: 'application/zip' }));
         });
     });
 }

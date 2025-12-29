@@ -51,17 +51,25 @@ function FolderNode({ folder, depth = 0, isCollapsed }: { folder: APIFolder; dep
                     Tree view in icon-only mode is really hard. 
                     Let's just show the icon.
                  */}
-                <div className={`hidden md:flex items-center min-w-[20px] justify-center mr-1 ${isCollapsed ? 'hidden' : ''}`}>
-                    <button
-                        onClick={handleToggle}
-                        className={`p-0.5 rounded-md hover:bg-white/10 transition-colors ${isOpen ? "text-zinc-300" : "text-zinc-500"}`}
-                    >
-                        <ChevronRight
-                            size={14}
-                            className={`transform transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`}
-                        />
-                    </button>
-                </div>
+                {/* Toggle Button - Hidden on mobile for cleaner look, or maybe show it? Mobile tree nav is hard sideways. 
+                    Let's hide tree expansion on mobile for now and just show current folder? 
+                    Actually, let's keep it but make it tiny or hidden. user wants "icon only".
+                    Tree view in icon-only mode is really hard. 
+                    Let's just show the icon.
+                 */}
+                {!isCollapsed && (
+                    <div className="hidden md:flex items-center min-w-[20px] justify-center mr-1">
+                        <button
+                            onClick={handleToggle}
+                            className={`p-0.5 rounded-md hover:bg-white/10 transition-colors ${isOpen ? "text-zinc-300" : "text-zinc-500"}`}
+                        >
+                            <ChevronRight
+                                size={14}
+                                className={`transform transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`}
+                            />
+                        </button>
+                    </div>
+                )}
 
                 {/* Folder Icon */}
                 <span className={`transition-colors ${!isCollapsed ? 'md:mr-2.5' : ''} ${isActive ? "text-blue-400" : "text-yellow-500/80 group-hover:text-yellow-400"}`}>

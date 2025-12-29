@@ -153,8 +153,8 @@ export default function Sidebar() {
 
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto px-1 py-2 scroll-smooth">
-                {/* Locations Header - Mobile Icon Only */}
-                <div className={`flex items-center justify-center ${!isCollapsed ? 'md:justify-start space-x-0 md:space-x-2' : ''} px-2 md:px-4 mb-3 text-xs font-bold text-zinc-500 uppercase tracking-widest`}>
+                {/* Locations Header - Mobile Icon Only/Hidden on Collapse for cleaner look */}
+                <div className={`flex items-center justify-center ${!isCollapsed ? 'md:justify-start space-x-0 md:space-x-2' : 'hidden'} px-2 md:px-4 mb-3 text-xs font-bold text-zinc-500 uppercase tracking-widest`}>
                     <HardDrive size={16} className="md:w-3 md:h-3" />
                     {!isCollapsed && <span className="hidden md:block animate-fade-in">Locations</span>}
                 </div>
@@ -178,10 +178,13 @@ export default function Sidebar() {
 
             {/* Storage Section */}
             <div className="p-2 md:p-4 mx-1 md:mx-2 mb-2 rounded-xl bg-gradient-to-br from-white/5 to-transparent border border-white/5">
-                <div className="flex items-center justify-center md:justify-between text-xs text-zinc-400 mb-0 md:mb-2">
-                    <div className="flex items-center md:space-x-2">
-                        <PieChart size={16} className="text-blue-400 md:w-3.5 md:h-3.5" />
-                        {!isCollapsed && <span className="hidden md:inline animate-fade-in">Storage Used</span>}
+                <div className={`flex items-center justify-center ${!isCollapsed ? 'md:justify-between mb-0 md:mb-2' : 'flex-col'} text-xs text-zinc-400`}>
+                    <div className={`flex items-center ${!isCollapsed ? 'md:space-x-2' : 'flex-col md:flex-col'} justify-center`}>
+                        <PieChart size={16} className={`text-blue-400 md:w-3.5 md:h-3.5 ${!isCollapsed ? '' : 'mb-1'}`} />
+                        {!isCollapsed
+                            ? <span className="hidden md:inline animate-fade-in">Storage Used</span>
+                            : <span className="text-[10px] text-zinc-500 font-mono animate-fade-in whitespace-nowrap">{formatSize(storageUsage)}</span>
+                        }
                     </div>
                 </div>
                 {!isCollapsed && (

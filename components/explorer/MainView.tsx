@@ -6,7 +6,7 @@ import { APIFile, APIFolder, APINode, isFolder, uploadFile, createFolder, getDow
 import {
     ArrowUp, ArrowDown, FolderPlus, UploadCloud, MoreHorizontal, RefreshCw,
     Trash2, Edit2, FileText, Folder as FolderIcon, Music, Image as ImageIcon, Video, File, Search, ArrowLeft,
-    CheckSquare, Square, Check, ChevronUp, ChevronDown
+    CheckSquare, Square, Check, ChevronUp, ChevronDown, List, LayoutGrid
 } from "lucide-react";
 import ContextMenu from "@/components/ui/ContextMenu";
 import Breadcrumb from "@/components/Breadcrumb";
@@ -33,7 +33,8 @@ export default function MainView() {
     const {
         currentPath, items, isLoading, error, refresh,
         navigateTo, goUp, breadcrumbs, navigateToBreadcrumb,
-        handleDelete, handleRename, fileTypeFilter
+        handleDelete, handleRename, fileTypeFilter,
+        viewMode, toggleViewMode
     } = useFileSystem();
 
     const [uploadProgress, setUploadProgress] = useState<{ name: string, percent: number } | null>(null);
@@ -311,8 +312,8 @@ export default function MainView() {
                         onClick={(e) => { e.stopPropagation(); goUp(); }}
                         disabled={breadcrumbs.length <= 1}
                         className={`p - 2 mr - 2 rounded - full transition - colors ${breadcrumbs.length <= 1
-                                ? "text-zinc-600 cursor-not-allowed opacity-50"
-                                : "text-zinc-400 hover:bg-white/10 hover:text-white"
+                            ? "text-zinc-600 cursor-not-allowed opacity-50"
+                            : "text-zinc-400 hover:bg-white/10 hover:text-white"
                             } `}
                         title="Go Back"
                     >
@@ -380,6 +381,16 @@ export default function MainView() {
                 <button onClick={(e) => { e.stopPropagation(); refresh(); }} className="p-2 hover:bg-white/10 rounded-full text-zinc-400 transition-colors">
                     <RefreshCw size={18} />
                 </button>
+
+                <div className="h-6 w-px bg-white/10 mx-2 hidden md:block" />
+
+                <button
+                    onClick={(e) => { e.stopPropagation(); toggleViewMode(); }}
+                    className="p-2 hover:bg-white/10 rounded-xl text-zinc-400 transition-colors"
+                    title={viewMode === 'list' ? "Switch to Grid View" : "Switch to List View"}
+                >
+                    {viewMode === 'list' ? <LayoutGrid size={18} /> : <List size={18} />}
+                </button>
             </div>
 
             {/* Upload Progress */}
@@ -416,123 +427,213 @@ export default function MainView() {
 
                 {!isLoading && !error && (
                     <div className="w-full">
-                        {/* Header Row */}
-                        <div className="grid grid-cols-[auto_auto_1fr_auto_auto] md:grid-cols-[auto_auto_1fr_auto_auto_auto] gap-4 px-4 py-2 text-xs font-semibold uppercase text-zinc-500 tracking-wider mb-2 border-b border-white/5 items-center">
-                            <div className="w-6 flex justify-center">
-                                {isSelectMode && (
-                                    <button onClick={(e) => { e.stopPropagation(); selectAll(); }} className="text-zinc-500 hover:text-white transition-colors">
-                                        {selectedIds.size === filteredItems.length && filteredItems.length > 0 ? <CheckSquare size={16} /> : <Square size={16} />}
-                                    </button>
-                                )}
-                            </div>
-                            <div className="w-8"></div>
-                            <div className="cursor-pointer hover:text-zinc-300 transition-colors flex items-center" onClick={() => toggleSort('name')}>
-                                Name <SortIcon column="name" />
-                            </div>
-                            <div className="w-24 hidden md:block">Type</div>
-                            <div className="w-20 md:w-24 text-right md:text-left cursor-pointer hover:text-zinc-300 transition-colors flex items-center justify-end md:justify-start" onClick={() => toggleSort('size')}>
-                                Size <SortIcon column="size" />
-                            </div>
-                            <div className="w-24 hidden md:block cursor-pointer hover:text-zinc-300 transition-colors flex items-center" onClick={() => toggleSort('date')}>
-                                Modified <SortIcon column="date" />
-                            </div>
-                        </div>
-
-                        <div className="space-y-1">
-                            {filteredItems.length === 0 && (
-                                <div className="py-20 flex flex-col items-center justify-center text-zinc-600">
-                                    {searchQuery ? (
-                                        <>
-                                            <Search size={48} className="mb-4 opacity-20" />
-                                            <p className="text-sm">No results found for "{searchQuery}"</p>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <FolderIcon size={48} className="mb-4 opacity-20" />
-                                            <p className="text-sm">This folder is empty</p>
-                                        </>
-                                    )}
+                        {viewMode === 'list' ? (
+                            <>
+                                {/* Header Row */}
+                                <div className="grid grid-cols-[auto_auto_1fr_auto_auto] md:grid-cols-[auto_auto_1fr_auto_auto_auto] gap-4 px-4 py-2 text-xs font-semibold uppercase text-zinc-500 tracking-wider mb-2 border-b border-white/5 items-center">
+                                    <div className="w-6 flex justify-center">
+                                        {isSelectMode && (
+                                            <button onClick={(e) => { e.stopPropagation(); selectAll(); }} className="text-zinc-500 hover:text-white transition-colors">
+                                                {selectedIds.size === filteredItems.length && filteredItems.length > 0 ? <CheckSquare size={16} /> : <Square size={16} />}
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="w-8"></div>
+                                    <div className="cursor-pointer hover:text-zinc-300 transition-colors flex items-center" onClick={() => toggleSort('name')}>
+                                        Name <SortIcon column="name" />
+                                    </div>
+                                    <div className="w-24 hidden md:block">Type</div>
+                                    <div className="w-20 md:w-24 text-right md:text-left cursor-pointer hover:text-zinc-300 transition-colors flex items-center justify-end md:justify-start" onClick={() => toggleSort('size')}>
+                                        Size <SortIcon column="size" />
+                                    </div>
+                                    <div className="w-24 hidden md:block cursor-pointer hover:text-zinc-300 transition-colors flex items-center" onClick={() => toggleSort('date')}>
+                                        Modified <SortIcon column="date" />
+                                    </div>
                                 </div>
-                            )}
 
-                            {filteredItems.map(item => {
-                                const isSel = selectedIds.has(item.id);
-                                const isFocused = focusedId === item.id;
-                                const isDir = isFolder(item);
-                                return (
-                                    <div
-                                        key={item.id}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-
-                                            // 1. If Select Mode or Ctrl Key -> Toggle Selection
-                                            if (isSelectMode || e.ctrlKey || e.metaKey) {
-                                                toggleSelection(item.id, true);
-                                                setFocusedId(null);
-                                            } else {
-                                                // 2. Normal Click -> Focus Item, Clear Selection
-                                                setFocusedId(item.id);
-                                                if (selectedIds.size > 0) setSelectedIds(new Set());
-                                            }
-                                        }}
-                                        onDoubleClick={(e) => { e.stopPropagation(); onDoubleClick(item); }}
-                                        onContextMenu={(e) => onRightClick(e, item)}
-                                        draggable
-                                        onDragStart={(e) => handleDragStart(e, item)}
-                                        onDragOver={(e) => {
-                                            if (isDir) { e.preventDefault(); }
-                                        }}
-                                        onDrop={(e) => {
-                                            if (isDir) handleDrop(e, item.id);
-                                        }}
-                                        className={`group grid grid - cols - [auto_auto_1fr_auto_auto] md: grid - cols - [auto_auto_1fr_auto_auto_auto] gap - 4 items - center px - 4 py - 3 rounded - xl cursor - pointer select - none transition - all duration - 200 
-                                            ${isSel
-                                                ? "bg-blue-600/20 shadow-lg shadow-blue-900/10 ring-1 ring-blue-500/30"
-                                                : isFocused
-                                                    ? "bg-white/10 ring-1 ring-white/10"
-                                                    : "hover:bg-white/5"
-                                            } `}
-                                    >
-                                        <div className="w-6 flex justify-center">
-                                            <div
-                                                className={`w - 4 h - 4 rounded border flex items - center justify - center transition - all cursor - pointer z - 10 
-                                                    ${isSel
-                                                        ? "bg-blue-500 border-blue-500"
-                                                        : "border-zinc-700 hover:border-zinc-500 bg-black/40"
-                                                    } 
-                                                    ${!isSel && !isSelectMode && !isFocused ? "opacity-0 group-hover:opacity-100" : "opacity-100"} `}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    toggleSelection(item.id, true);
-                                                }}
-                                            >
-                                                {isSel && <Check size={12} className="text-white" />}
-                                            </div>
-                                        </div>
-
-                                        <div className="w-8 flex justify-center">
-                                            {isDir ? (
-                                                <FolderIcon size={20} className="text-yellow-500/80 group-hover:text-yellow-400 transition-colors" />
+                                <div className="space-y-1">
+                                    {filteredItems.length === 0 && (
+                                        <div className="py-20 flex flex-col items-center justify-center text-zinc-600">
+                                            {searchQuery ? (
+                                                <>
+                                                    <Search size={48} className="mb-4 opacity-20" />
+                                                    <p className="text-sm">No results found for "{searchQuery}"</p>
+                                                </>
                                             ) : (
-                                                getFileIcon((item as APIFile).name)
+                                                <>
+                                                    <FolderIcon size={48} className="mb-4 opacity-20" />
+                                                    <p className="text-sm">This folder is empty</p>
+                                                </>
                                             )}
                                         </div>
-                                        <div className={`font - medium truncate ${isSel ? "text-blue-100" : isFocused ? "text-white" : "text-zinc-300 group-hover:text-white"} `}>
-                                            {item.name}
-                                        </div>
-                                        <div className="w-24 text-sm text-zinc-500 hidden md:block">{isDir ? 'Folder' : 'File'}</div>
-                                        <div className="w-20 md:w-24 text-sm text-zinc-500 text-right md:text-left">{isDir ? '-' : formatSize((item as APIFile).size)}</div>
-                                        <div className="w-32 text-sm text-zinc-600 group-hover:text-zinc-500 hidden md:block">
-                                            {isDir
-                                                ? new Date(item.createdAt).toLocaleDateString()
-                                                // @ts-ignore
-                                                : new Date(item.updatedAt || item.createdAt).toLocaleDateString()
-                                            }
-                                        </div>
+                                    )}
+
+                                    {filteredItems.map(item => {
+                                        const isSel = selectedIds.has(item.id);
+                                        const isFocused = focusedId === item.id;
+                                        const isDir = isFolder(item);
+                                        return (
+                                            <div
+                                                key={item.id}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+
+                                                    // 1. If Select Mode or Ctrl Key -> Toggle Selection
+                                                    if (isSelectMode || e.ctrlKey || e.metaKey) {
+                                                        toggleSelection(item.id, true);
+                                                        setFocusedId(null);
+                                                    } else {
+                                                        // 2. Normal Click -> Focus Item, Clear Selection
+                                                        setFocusedId(item.id);
+                                                        if (selectedIds.size > 0) setSelectedIds(new Set());
+                                                    }
+                                                }}
+                                                onDoubleClick={(e) => { e.stopPropagation(); onDoubleClick(item); }}
+                                                onContextMenu={(e) => onRightClick(e, item)}
+                                                draggable
+                                                onDragStart={(e) => handleDragStart(e, item)}
+                                                onDragOver={(e) => {
+                                                    if (isDir) { e.preventDefault(); }
+                                                }}
+                                                onDrop={(e) => {
+                                                    if (isDir) handleDrop(e, item.id);
+                                                }}
+                                                className={`group grid grid-cols-[auto_auto_1fr_auto_auto] md:grid-cols-[auto_auto_1fr_auto_auto_auto] gap-4 items-center px-4 py-3 rounded-xl cursor-pointer select-none transition-all duration-200 
+                                                    ${isSel
+                                                        ? "bg-blue-600/20 shadow-lg shadow-blue-900/10 ring-1 ring-blue-500/30"
+                                                        : isFocused
+                                                            ? "bg-white/10 ring-1 ring-white/10"
+                                                            : "hover:bg-white/5"
+                                                    }`}
+                                            >
+                                                <div className="w-6 flex justify-center">
+                                                    <div
+                                                        className={`w-4 h-4 rounded border flex items-center justify-center transition-all cursor-pointer z-10 
+                                                            ${isSel
+                                                                ? "bg-blue-500 border-blue-500"
+                                                                : "border-zinc-700 hover:border-zinc-500 bg-black/40"
+                                                            } 
+                                                            ${!isSel && !isSelectMode && !isFocused ? "opacity-0 group-hover:opacity-100" : "opacity-100"}`}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            toggleSelection(item.id, true);
+                                                        }}
+                                                    >
+                                                        {isSel && <Check size={12} className="text-white" />}
+                                                    </div>
+                                                </div>
+
+                                                <div className="w-8 flex justify-center">
+                                                    {isDir ? (
+                                                        <FolderIcon size={20} className="text-yellow-500/80 group-hover:text-yellow-400 transition-colors" />
+                                                    ) : (
+                                                        getFileIcon((item as APIFile).name)
+                                                    )}
+                                                </div>
+                                                <div className={`font-medium truncate ${isSel ? "text-blue-100" : isFocused ? "text-white" : "text-zinc-300 group-hover:text-white"}`}>
+                                                    {item.name}
+                                                </div>
+                                                <div className="w-24 text-sm text-zinc-500 hidden md:block">{isDir ? 'Folder' : 'File'}</div>
+                                                <div className="w-20 md:w-24 text-sm text-zinc-500 text-right md:text-left">{isDir ? '-' : formatSize((item as APIFile).size)}</div>
+                                                <div className="w-32 text-sm text-zinc-600 group-hover:text-zinc-500 hidden md:block">
+                                                    {isDir
+                                                        ? new Date(item.createdAt).toLocaleDateString()
+                                                        // @ts-ignore
+                                                        : new Date(item.updatedAt || item.createdAt).toLocaleDateString()
+                                                    }
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </>
+                        ) : (
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                                {filteredItems.length === 0 && (
+                                    <div className="col-span-full py-20 flex flex-col items-center justify-center text-zinc-600">
+                                        {searchQuery ? (
+                                            <>
+                                                <Search size={48} className="mb-4 opacity-20" />
+                                                <p className="text-sm">No results found for "{searchQuery}"</p>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <FolderIcon size={48} className="mb-4 opacity-20" />
+                                                <p className="text-sm">This folder is empty</p>
+                                            </>
+                                        )}
                                     </div>
-                                );
-                            })}
-                        </div>
+                                )}
+
+                                {filteredItems.map(item => {
+                                    const isSel = selectedIds.has(item.id);
+                                    const isFocused = focusedId === item.id;
+                                    const isDir = isFolder(item);
+                                    return (
+                                        <div
+                                            key={item.id}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (isSelectMode || e.ctrlKey || e.metaKey) {
+                                                    toggleSelection(item.id, true);
+                                                    setFocusedId(null);
+                                                } else {
+                                                    setFocusedId(item.id);
+                                                    if (selectedIds.size > 0) setSelectedIds(new Set());
+                                                }
+                                            }}
+                                            onDoubleClick={(e) => { e.stopPropagation(); onDoubleClick(item); }}
+                                            onContextMenu={(e) => onRightClick(e, item)}
+                                            draggable
+                                            onDragStart={(e) => handleDragStart(e, item)}
+                                            onDragOver={(e) => { if (isDir) e.preventDefault(); }}
+                                            onDrop={(e) => { if (isDir) handleDrop(e, item.id); }}
+                                            className={`group flex flex-col items-center p-4 rounded-2xl cursor-pointer select-none transition-all duration-200 relative
+                                                ${isSel
+                                                    ? "bg-blue-600/20 shadow-lg shadow-blue-900/10 ring-1 ring-blue-500/30"
+                                                    : isFocused
+                                                        ? "bg-white/10 ring-1 ring-white/10"
+                                                        : "hover:bg-white/5"
+                                                }`}
+                                        >
+                                            <div className="absolute top-3 left-3">
+                                                <div
+                                                    className={`w-4 h-4 rounded border flex items-center justify-center transition-all cursor-pointer z-10 
+                                                        ${isSel
+                                                            ? "bg-blue-500 border-blue-500"
+                                                            : "border-zinc-700 hover:border-zinc-500 bg-black/40"
+                                                        } 
+                                                        ${!isSel && !isSelectMode && !isFocused ? "opacity-0 group-hover:opacity-100" : "opacity-100"}`}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        toggleSelection(item.id, true);
+                                                    }}
+                                                >
+                                                    {isSel && <Check size={12} className="text-white" />}
+                                                </div>
+                                            </div>
+
+                                            <div className="mb-3">
+                                                {isDir ? (
+                                                    <FolderIcon size={48} className="text-yellow-500/80 group-hover:text-yellow-400 transition-colors" />
+                                                ) : (
+                                                    <div className="w-12 h-12 flex items-center justify-center">
+                                                        {React.cloneElement(getFileIcon((item as APIFile).name) as React.ReactElement, { size: 40 })}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className={`text-sm font-medium text-center truncate w-full ${isSel ? "text-blue-100" : isFocused ? "text-white" : "text-zinc-300 group-hover:text-white"}`}>
+                                                {item.name}
+                                            </div>
+                                            <div className="text-[10px] text-zinc-500 mt-1">
+                                                {isDir ? 'Folder' : formatSize((item as APIFile).size)}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

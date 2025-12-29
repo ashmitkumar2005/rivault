@@ -6,12 +6,14 @@ import { APIFile, APIFolder, APINode, isFolder, uploadFile, createFolder, getDow
 import {
     ArrowUp, ArrowDown, FolderPlus, UploadCloud, MoreHorizontal, RefreshCw,
     Trash2, Edit2, FileText, Folder as FolderIcon, Music, Image as ImageIcon, Video, File, Search, ArrowLeft,
-    CheckSquare, Square, Check, ChevronUp, ChevronDown, List, LayoutGrid
+    CheckSquare, Square, Check, ChevronUp, ChevronDown, List, LayoutGrid,
+    FileCode, Archive, FileSpreadsheet, FileJson, FileType as FileTypeIcon
 } from "lucide-react";
 import ContextMenu from "@/components/ui/ContextMenu";
 import Breadcrumb from "@/components/Breadcrumb";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import InputModal from "@/components/ui/InputModal";
+import Modal from "@/components/ui/Modal";
 
 function formatSize(bytes: number) {
     if (bytes === 0) return '0 B';
@@ -23,10 +25,15 @@ function formatSize(bytes: number) {
 
 function getFileIcon(filename: string) {
     const ext = filename.split('.').pop()?.toLowerCase();
-    if (['mp3', 'wav', 'ogg'].includes(ext || '')) return <Music size={20} className="text-pink-400" />;
-    if (['jpg', 'png', 'gif', 'jpeg'].includes(ext || '')) return <ImageIcon size={20} className="text-purple-400" />;
-    if (['mp4', 'mkv', 'mov'].includes(ext || '')) return <Video size={20} className="text-red-400" />;
-    return <FileText size={20} className="text-blue-400" />;
+    if (['mp3', 'wav', 'ogg', 'm4a', 'flac'].includes(ext || '')) return <Music size={20} className="text-pink-400" />;
+    if (['jpg', 'png', 'gif', 'jpeg', 'svg', 'webp'].includes(ext || '')) return <ImageIcon size={20} className="text-purple-400" />;
+    if (['mp4', 'mkv', 'mov', 'webm'].includes(ext || '')) return <Video size={20} className="text-red-400" />;
+    if (['pdf', 'doc', 'docx', 'txt', 'rtf'].includes(ext || '')) return <FileText size={20} className="text-blue-400" />;
+    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext || '')) return <Archive size={20} className="text-orange-400" />;
+    if (['xls', 'xlsx', 'csv'].includes(ext || '')) return <FileSpreadsheet size={20} className="text-emerald-400" />;
+    if (['js', 'ts', 'jsx', 'tsx', 'py', 'go', 'rs', 'cpp', 'h', 'c', 'cs', 'html', 'css'].includes(ext || '')) return <FileCode size={20} className="text-amber-400" />;
+    if (['json', 'yaml', 'yml', 'xml'].includes(ext || '')) return <FileJson size={20} className="text-cyan-400" />;
+    return <FileText size={20} className="text-zinc-400" />;
 }
 
 export default function MainView() {
@@ -43,6 +50,7 @@ export default function MainView() {
     const [searchQuery, setSearchQuery] = useState("");
     const [isSelectMode, setIsSelectMode] = useState(false);
     const [sortConfig, setSortConfig] = useState<{ key: 'name' | 'size' | 'date', direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
+    const [dragOverId, setDragOverId] = useState<string | null>(null);
 
     // Modal States
     const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -287,22 +295,25 @@ export default function MainView() {
 
     const handleDrop = async (e: React.DragEvent, targetFolderId: string) => {
         e.preventDefault();
-        e.stopPropagation();
-        const draggedId = e.dataTransfer.getData("text/nodeId");
-        const idsToMove = selectedIds.has(draggedId) ? Array.from(selectedIds) : [draggedId];
-        let movedCount = 0;
-        for (const id of idsToMove) {
-            if (id && id !== targetFolderId) {
-                try {
-                    await moveNode(id, targetFolderId);
-                    movedCount++;
-                } catch (e: any) {
-                    console.error("Failed to move", id, e);
-                    setAlertModal({ isOpen: true, title: 'Move Failed', message: e.message });
+        setDragOverId(null);
+        const sourceId = e.dataTransfer.getData("text/nodeId");
+        if (!sourceId || sourceId === targetFolderId) return;
+
+        try {
+            // If dragging a selected item, move all selected items
+            if (selectedIds.has(sourceId)) {
+                for (const id of selectedIds) {
+                    if (id !== targetFolderId) {
+                        await handleMove(id, targetFolderId);
+                    }
                 }
+            } else {
+                await handleMove(sourceId, targetFolderId);
             }
+            refresh();
+        } catch (err: any) {
+            setAlertModal({ isOpen: true, title: 'Move Failed', message: err.message });
         }
-        if (movedCount > 0) refresh();
     };
 
     return (
@@ -321,10 +332,10 @@ export default function MainView() {
                     <button
                         onClick={(e) => { e.stopPropagation(); goUp(); }}
                         disabled={breadcrumbs.length <= 1}
-                        className={`p - 2 mr - 2 rounded - full transition - colors ${breadcrumbs.length <= 1
+                        className={`p-2 mr-2 rounded-full transition-colors ${breadcrumbs.length <= 1
                             ? "text-zinc-600 cursor-not-allowed opacity-50"
                             : "text-zinc-400 hover:bg-white/10 hover:text-white"
-                            } `}
+                            }`}
                         title="Go Back"
                     >
                         <ArrowLeft size={18} />
@@ -352,7 +363,7 @@ export default function MainView() {
                 {/* Selection Controls */}
                 <button
                     onClick={(e) => { e.stopPropagation(); setIsSelectMode(!isSelectMode); }}
-                    className={`p - 2 rounded - xl transition - all ${isSelectMode ? "bg-blue-600/20 text-blue-400" : "text-zinc-400 hover:text-white"} `}
+                    className={`p-2 rounded-xl transition-all ${isSelectMode ? "bg-blue-600/20 text-blue-400" : "text-zinc-400 hover:text-white"}`}
                     title="Toggle Selection Mode"
                 >
                     <CheckSquare size={18} />
@@ -503,8 +514,12 @@ export default function MainView() {
                                                 draggable
                                                 onDragStart={(e) => handleDragStart(e, item)}
                                                 onDragOver={(e) => {
-                                                    if (isDir) { e.preventDefault(); }
+                                                    if (isDir) {
+                                                        e.preventDefault();
+                                                        setDragOverId(item.id);
+                                                    }
                                                 }}
+                                                onDragLeave={() => setDragOverId(null)}
                                                 onDrop={(e) => {
                                                     if (isDir) handleDrop(e, item.id);
                                                 }}
@@ -513,7 +528,9 @@ export default function MainView() {
                                                         ? "bg-blue-600/20 shadow-lg shadow-blue-900/10 ring-1 ring-blue-500/30"
                                                         : isFocused
                                                             ? "bg-white/10 ring-1 ring-white/10"
-                                                            : "hover:bg-white/5"
+                                                            : dragOverId === item.id
+                                                                ? "bg-blue-500/20 scale-[1.01] ring-1 ring-blue-400/50"
+                                                                : "hover:bg-white/5"
                                                     }`}
                                             >
                                                 <div className="w-6 flex justify-center">
@@ -596,14 +613,22 @@ export default function MainView() {
                                             onContextMenu={(e) => onRightClick(e, item)}
                                             draggable
                                             onDragStart={(e) => handleDragStart(e, item)}
-                                            onDragOver={(e) => { if (isDir) e.preventDefault(); }}
+                                            onDragOver={(e) => {
+                                                if (isDir) {
+                                                    e.preventDefault();
+                                                    setDragOverId(item.id);
+                                                }
+                                            }}
+                                            onDragLeave={() => setDragOverId(null)}
                                             onDrop={(e) => { if (isDir) handleDrop(e, item.id); }}
                                             className={`group flex flex-col items-center p-4 rounded-2xl cursor-pointer select-none transition-all duration-200 relative
                                                 ${isSel
                                                     ? "bg-blue-600/20 shadow-lg shadow-blue-900/10 ring-1 ring-blue-500/30"
                                                     : isFocused
                                                         ? "bg-white/10 ring-1 ring-white/10"
-                                                        : "hover:bg-white/5"
+                                                        : dragOverId === item.id
+                                                            ? "bg-blue-500/20 scale-[1.05] ring-2 ring-blue-400/50"
+                                                            : "hover:bg-white/5"
                                                 }`}
                                         >
                                             <div className="absolute top-3 left-3">
@@ -687,7 +712,7 @@ export default function MainView() {
                 onClose={() => setDeleteModal({ ...deleteModal, isOpen: false })}
                 onConfirm={confirmDelete}
                 title="Delete Items"
-                message={`Are you sure you want to delete ${deleteModal.count} item(s) ? This action cannot be undone.`}
+                message={`Are you sure you want to delete ${deleteModal.count} item(s)? This action cannot be undone.`}
                 confirmLabel="Delete"
                 isDestructive={true}
             />
@@ -709,18 +734,16 @@ export default function MainView() {
                 <p>{alertModal.message}</p>
             </Modal>
 
-
             {/* Branding Footer */}
             <div className="glass-panel border-x-0 border-b-0 py-2 text-center text-[10px] text-zinc-600 font-medium select-none z-20">
-                Made with <span className="inline-block animate-pulse text-red-500 mx-1" style={{ animation: 'beat 1.5s infinite running' }}>❤️</span>
+                Made with <span className="inline-block animate-pulse text-red-500 mx-1" style={{ animation: 'beat 1.5s infinite' }}>❤️</span>
                 <a href="https://ashmit-kumar.vercel.app" target="_blank" rel="noopener noreferrer" className="font-bold text-zinc-400 hover:text-white transition-colors tracking-wide">Riveror</a>
                 <style jsx>{`
-@keyframes beat {
-    0 %, 100 % { transform: scale(1); opacity: 1; }
-    50 % { transform: scale(1.25); opacity: 0.8; text- shadow: 0 0 10px rgba(239, 68, 68, 0.5);
-}
+                    @keyframes beat {
+                        0%, 100% { transform: scale(1); opacity: 1; }
+                        50% { transform: scale(1.25); opacity: 0.8; text-shadow: 0 0 10px rgba(239, 68, 68, 0.5); }
                     }
-`}</style>
+                `}</style>
             </div>
         </div>
     );

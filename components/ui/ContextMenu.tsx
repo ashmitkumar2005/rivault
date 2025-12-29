@@ -3,7 +3,7 @@
 import React, { useEffect, useRef } from "react";
 import { APIFile, APIFolder, isFolder } from "@/lib/api";
 import {
-    FolderOpen, Download, Edit2, Trash2, ExternalLink
+    FolderOpen, Download, Edit2, Trash2, ExternalLink, Link
 } from "lucide-react";
 
 interface ContextMenuProps {
@@ -58,13 +58,22 @@ export default function ContextMenu({ x, y, item, onClose, onAction }: ContextMe
             </button>
 
             {!isDir && (
-                <button
-                    onClick={() => onAction('download', item)}
-                    className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-200 hover:bg-white/10 rounded-lg transition-colors group"
-                >
-                    <Download size={16} className="text-zinc-400 group-hover:text-white" />
-                    <span>Download</span>
-                </button>
+                <>
+                    <button
+                        onClick={() => onAction('download', item)}
+                        className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-200 hover:bg-white/10 rounded-lg transition-colors group"
+                    >
+                        <Download size={16} className="text-zinc-400 group-hover:text-white" />
+                        <span>Download</span>
+                    </button>
+                    <button
+                        onClick={() => onAction('copy-link', item)}
+                        className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-200 hover:bg-white/10 rounded-lg transition-colors group"
+                    >
+                        <Link size={16} className="text-zinc-400 group-hover:text-white" />
+                        <span>Copy Link</span>
+                    </button>
+                </>
             )}
 
             <div className="h-px bg-white/5 my-1 mx-2" />

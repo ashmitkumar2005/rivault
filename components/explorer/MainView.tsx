@@ -261,6 +261,16 @@ export default function MainView() {
                     setDeleteModal({ isOpen: true, count: selectedIds.size });
                 }
                 break;
+            case 'copy-link':
+                const url = getDownloadUrl(item.id);
+                // Try to get absolute URL
+                const absoluteUrl = url.startsWith('http') ? url : (window.location.origin + url);
+                navigator.clipboard.writeText(absoluteUrl).then(() => {
+                    setAlertModal({ isOpen: true, title: 'Link Copied', message: 'Download link copied to clipboard!' });
+                }).catch(err => {
+                    setAlertModal({ isOpen: true, title: 'Error', message: 'Failed to copy link: ' + err.message });
+                });
+                break;
         }
     };
 

@@ -75,7 +75,7 @@ function FolderNode({ folder, depth = 0, isCollapsed }: { folder: APIFolder; dep
                 If we hide children on mobile, they can't nav. 
                 Let's allow children rendering but they will also be just icons.
             */}
-            {isOpen && (
+            {isOpen && !isCollapsed && (
                 <div className="relative">
                     {/* Tree Guide Line - Desktop Only */}
                     <div

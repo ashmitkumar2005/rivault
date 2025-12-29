@@ -3,7 +3,7 @@
 import React, { useEffect, useRef } from "react";
 import { APIFile, APIFolder, isFolder } from "@/lib/api";
 import {
-    FolderOpen, Download, Edit2, Trash2, ExternalLink, Link
+    FolderOpen, Download, Edit2, Trash2, ExternalLink, Link, Eye
 } from "lucide-react";
 
 interface ContextMenuProps {
@@ -54,11 +54,18 @@ export default function ContextMenu({ x, y, item, onClose, onAction }: ContextMe
                 className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-200 hover:bg-blue-600/20 hover:text-blue-200 rounded-lg transition-colors group"
             >
                 {isDir ? <FolderOpen size={16} className="text-zinc-400 group-hover:text-blue-400" /> : <ExternalLink size={16} className="text-zinc-400 group-hover:text-blue-400" />}
-                <span>Open</span>
+                <span>{isDir ? 'Open' : 'Preview'}</span>
             </button>
 
             {!isDir && (
                 <>
+                    <button
+                        onClick={() => onAction('preview', item)}
+                        className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-200 hover:bg-white/10 rounded-lg transition-colors group"
+                    >
+                        <Eye size={16} className="text-zinc-400 group-hover:text-blue-400" />
+                        <span>Quick Preview</span>
+                    </button>
                     <button
                         onClick={() => onAction('download', item)}
                         className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-200 hover:bg-white/10 rounded-lg transition-colors group"

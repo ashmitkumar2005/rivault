@@ -1,0 +1,137 @@
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import { APIFile, getDownloadUrl } from '@/lib/api';
+import { FileText, Music, Play, AlertCircle, Loader2 } from 'lucide-react';
+
+interface FilePreviewContentProps {
+    item: APIFile;
+}
+
+export default function FilePreviewContent({ item }: FilePreviewContentProps) {
+    const [content, setContent] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const url = getDownloadUrl(item.id);
+    const ext = item.name.split('.').pop()?.toLowerCase() || '';
+
+    useEffect(() => {
+        // Only fetch content for text-based files
+        const textExts = ['txt', 'md', 'js', 'ts', 'jsx', 'tsx', 'py', 'json', 'css', 'html', 'yaml', 'yml', 'xml', 'rs', 'go', 'cpp', 'c', 'sh'];
+        if (textExts.includes(ext)) {
+            setLoading(true);
+            fetch(url)
+                .then(res => {
+                    if (!res.ok) throw new Error('Failed to load file content');
+                    return res.text();
+                })
+                .then(text => {
+                    setContent(text);
+                    setLoading(false);
+                })
+                .catch(err => {
+                    setError(err.message);
+                    setLoading(false);
+                });
+        }
+    }, [url, ext]);
+
+    // 1. Image Preview
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) {
+        return (
+            <div className="relative group animate-fade-in max-w-full max-h-full flex items-center justify-center">
+                <img
+                    src={url}
+                    alt={item.name}
+                    className="max-w-full max-h-full object-contain rounded-lg shadow-2xl transition-transform duration-500 hover:scale-[1.02]"
+                    onLoad={(e) => (e.currentTarget.parentElement?.classList.remove('animate-pulse'))}
+                />
+            </div>
+        );
+    }
+
+    // 2. Video Preview
+    if (['mp4', 'mkv', 'mov', 'webm'].includes(ext)) {
+        return (
+            <div className="w-full max-w-4xl aspect-video bg-black/40 rounded-3xl overflow-hidden border border-white/10 shadow-2xl relative group">
+                <video
+                    src={url}
+                    controls
+                    className="w-full h-full object-contain"
+                    autoPlay
+                />
+            </div>
+        );
+    }
+
+    // 3. Audio Preview
+    if (['mp3', 'wav', 'ogg', 'm4a', 'flac'].includes(ext)) {
+        return (
+            <div className="w-full max-w-xl p-12 glass-panel rounded-[2rem] border border-white/10 flex flex-col items-center space-y-8 animate-scale-in">
+                <div className="w-40 h-40 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-full flex items-center justify-center shadow-inner group relative">
+                    <div className="absolute inset-0 bg-blue-500/10 blur-3xl rounded-full opacity-50 group-hover:opacity-100 transition-opacity animate-pulse" />
+                    <Music size={80} className="text-blue-400 relative z-10" />
+                </div>
+                <div className="text-center">
+                    <h4 className="text-xl font-bold text-white mb-2">{item.name}</h4>
+                    <p className="text-sm text-zinc-400">Audio Preview</p>
+                </div>
+                <audio src={url} controls className="w-full" autoPlay />
+            </div>
+        );
+    }
+
+    // 4. Code / Text Preview
+    if (loading) {
+        return (
+            <div className="flex flex-col items-center justify-center space-y-4 animate-pulse">
+                <Loader2 size={48} className="text-blue-400 animate-spin" />
+                <p className="text-zinc-400 text-sm font-medium tracking-widest uppercase">Fetching Content...</p>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center space-y-4 text-red-400">
+                <AlertCircle size={48} />
+                <p className="text-sm">{error}</p>
+            </div>
+        );
+    }
+
+    if (content !== null) {
+        return (
+            <div className="w-full max-w-5xl h-full max-h-[70vh] glass-panel rounded-2xl border border-white/10 overflow-hidden flex flex-col">
+                <div className="px-4 py-2 bg-white/5 border-b border-white/5 flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{ext} Source</span>
+                </div>
+                <pre className="flex-1 p-6 overflow-auto custom-scrollbar text-sm font-mono text-zinc-300 selection:bg-blue-500/30">
+                    <code className="block leading-relaxed">
+                        {content}
+                    </code>
+                </pre>
+            </div>
+        );
+    }
+
+    // 5. Fallback for unsupported types
+    return (
+        <div className="flex flex-col items-center justify-center space-y-6 text-zinc-500 animate-scale-in">
+            <div className="w-24 h-24 bg-zinc-900 rounded-3xl flex items-center justify-center border border-white/5">
+                <FileText size={48} className="opacity-20" />
+            </div>
+            <div className="text-center">
+                <h4 className="text-lg font-medium text-zinc-300">No Preview Available</h4>
+                <p className="text-sm text-zinc-500 mt-1 max-w-[250px]">We can't preview this file type directly yet.</p>
+            </div>
+            <button
+                onClick={() => window.open(url, '_blank')}
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-900/20 transition-all flex items-center space-x-2"
+            >
+                <Play size={16} />
+                <span>Open Raw</span>
+            </button>
+        </div>
+    );
+}

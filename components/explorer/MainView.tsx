@@ -14,6 +14,8 @@ import Breadcrumb from "@/components/Breadcrumb";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import InputModal from "@/components/ui/InputModal";
 import Modal from "@/components/ui/Modal";
+import PreviewModal from "./PreviewModal";
+import FilePreviewContent from "./FilePreviewContent";
 
 function formatSize(bytes: number) {
     if (bytes === 0) return '0 B';
@@ -57,6 +59,7 @@ export default function MainView() {
     const [renameModal, setRenameModal] = useState<{ isOpen: boolean, id: string, name: string }>({ isOpen: false, id: '', name: '' });
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean, count: number }>({ isOpen: false, count: 0 });
     const [alertModal, setAlertModal] = useState<{ isOpen: boolean, title: string, message: string }>({ isOpen: false, title: '', message: '' });
+    const [previewItem, setPreviewItem] = useState<APIFile | null>(null);
 
     // Reset selection and search when path changes
     useEffect(() => {
@@ -186,7 +189,7 @@ export default function MainView() {
         if (isFolder(item)) {
             navigateTo(item.id, item.name);
         } else {
-            window.open(getDownloadUrl(item.id), "_blank");
+            setPreviewItem(item as APIFile);
         }
     };
 
@@ -253,6 +256,9 @@ export default function MainView() {
         switch (action) {
             case 'open':
                 onDoubleClick(item);
+                break;
+            case 'preview':
+                if (!isFolder(item)) setPreviewItem(item as APIFile);
                 break;
             case 'download':
                 window.open(getDownloadUrl(item.id), "_blank");
@@ -733,6 +739,19 @@ export default function MainView() {
             >
                 <p>{alertModal.message}</p>
             </Modal>
+
+            {/* Rich Media Previewer */}
+            {previewItem && (
+                <PreviewModal
+                    isOpen={!!previewItem}
+                    onClose={() => setPreviewItem(null)}
+                    title={previewItem.name}
+                    onDownload={() => window.open(getDownloadUrl(previewItem.id), "_blank")}
+                    onExternal={() => window.open(getDownloadUrl(previewItem.id), "_blank")}
+                >
+                    <FilePreviewContent item={previewItem} />
+                </PreviewModal>
+            )}
 
             {/* Branding Footer */}
             <div className="glass-panel border-x-0 border-b-0 py-2 text-center text-[10px] text-zinc-600 font-medium select-none z-20">

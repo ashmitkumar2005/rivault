@@ -16,6 +16,7 @@ import InputModal from "@/components/ui/InputModal";
 import Modal from "@/components/ui/Modal";
 import PreviewModal from "./PreviewModal";
 import FilePreviewContent from "./FilePreviewContent";
+import FileSkeleton from "./FileSkeleton";
 
 function formatSize(bytes: number) {
     if (bytes === 0) return '0 B';
@@ -435,12 +436,7 @@ export default function MainView() {
 
             {/* File List */}
             <div className="flex-1 overflow-auto p-4 md:p-6 scroll-smooth">
-                {isLoading && (
-                    <div className="flex flex-col items-center justify-center h-64 text-zinc-500 animate-pulse">
-                        <div className="w-12 h-12 rounded-full border-2 border-zinc-700 border-t-zinc-400 animate-spin mb-4" />
-                        <span className="text-sm">Loading contents...</span>
-                    </div>
-                )}
+                {isLoading && <FileSkeleton viewMode={viewMode} />}
 
                 {error && (
                     <div className="glass-panel p-6 rounded-xl border-red-500/20 flex flex-col items-center text-center">

@@ -36,7 +36,7 @@ function FolderNode({ folder, depth = 0, isCollapsed }: { folder: APIFolder; dep
     return (
         <div className="select-none animate-fade-in group/node">
             <div
-                className={`group flex items-center py-2 px-2 md:px-3 cursor-pointer rounded-lg mx-1 md:mx-2 transition-all duration-200 justify-center ${!isCollapsed ? 'md:justify-start' : ''} ${isActive
+                className={`group flex items-center py-2 px-2 ${!isCollapsed ? 'md:px-3' : ''} cursor-pointer rounded-lg mx-1 ${!isCollapsed ? 'md:mx-2' : ''} transition-all duration-200 justify-center ${!isCollapsed ? 'md:justify-start' : ''} ${isActive
                     ? "bg-blue-600/20 text-blue-200 border border-blue-500/20"
                     : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
                     }`}
@@ -139,8 +139,8 @@ export default function Sidebar() {
             </button>
 
             {/* Logo Section */}
-            <div className={`p-4 md:p-6 pb-2 flex items-center justify-center ${!isCollapsed ? 'md:justify-start' : ''} mb-4`}>
-                <div className={`relative w-8 h-8 md:w-9 md:h-9 ${!isCollapsed ? 'md:mr-3' : ''} group shrink-0`}>
+            <div className={`p-4 ${!isCollapsed ? 'md:p-6' : ''} pb-2 flex items-center justify-center ${!isCollapsed ? 'md:justify-start' : ''} mb-4`}>
+                <div className={`relative w-8 h-8 ${!isCollapsed ? 'md:w-9 md:h-9 md:mr-3' : ''} group shrink-0`}>
                     <div className="absolute inset-0 bg-blue-500/20 blur-lg rounded-full opacity-50 group-hover:opacity-100 transition-opacity" />
                     <Image src="/logo.svg" alt="Rivault Logo" fill className="object-contain relative z-10" />
                 </div>
@@ -154,7 +154,7 @@ export default function Sidebar() {
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto px-1 py-2 scroll-smooth">
                 {/* Locations Header - Mobile Icon Only/Hidden on Collapse for cleaner look */}
-                <div className={`flex items-center justify-center ${!isCollapsed ? 'md:justify-start space-x-0 md:space-x-2' : 'hidden'} px-2 md:px-4 mb-3 text-xs font-bold text-zinc-500 uppercase tracking-widest`}>
+                <div className={`flex items-center justify-center ${!isCollapsed ? 'md:justify-start space-x-0 md:space-x-2' : 'hidden'} px-2 ${!isCollapsed ? 'md:px-4' : ''} mb-3 text-xs font-bold text-zinc-500 uppercase tracking-widest`}>
                     <HardDrive size={16} className="md:w-3 md:h-3" />
                     {!isCollapsed && <span className="hidden md:block animate-fade-in">Locations</span>}
                 </div>
@@ -163,10 +163,10 @@ export default function Sidebar() {
             </div>
 
             {/* File Type Filters */}
-            <div className={`px-2 md:px-4 py-2 border-t border-white/5 ${isCollapsed ? 'items-center flex flex-col' : ''}`}>
+            <div className={`px-2 ${!isCollapsed ? 'md:px-4' : ''} py-2 border-t border-white/5 ${isCollapsed ? 'items-center flex flex-col' : ''}`}>
                 {!isCollapsed && <div className="hidden md:block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3 animate-fade-in">File Types</div>}
                 {/* Mobile Separator */}
-                <div className="md:hidden h-px bg-white/5 my-2 mx-2" />
+                <div className={`${!isCollapsed ? 'md:hidden' : 'block'} h-px bg-white/5 my-2 mx-2`} />
 
                 <div className="space-y-1">
                     <FilterButton type="image" icon={<ImageIcon size={18} className="md:w-4 md:h-4" />} label="Images" count="JPG, PNG..." />
@@ -177,7 +177,7 @@ export default function Sidebar() {
             </div>
 
             {/* Storage Section */}
-            <div className="p-2 md:p-4 mx-1 md:mx-2 mb-2 rounded-xl bg-gradient-to-br from-white/5 to-transparent border border-white/5">
+            <div className={`p-2 ${!isCollapsed ? 'md:p-4 mx-1 md:mx-2' : 'mx-1'} mb-2 rounded-xl bg-gradient-to-br from-white/5 to-transparent border border-white/5`}>
                 <div className={`flex items-center justify-center ${!isCollapsed ? 'md:justify-between' : ''} text-xs text-zinc-400 mb-0 md:mb-2`}>
                     <div className={`flex items-center ${!isCollapsed ? 'md:space-x-2' : ''}`}>
                         <PieChart size={16} className={`text-blue-400 md:w-3.5 md:h-3.5`} />

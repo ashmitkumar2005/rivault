@@ -335,7 +335,7 @@ export default function MainView() {
                 // Skip directories (fflate represents them with trailing slash and empty data)
                 if (name.endsWith('/')) continue;
 
-                const file = new File([data], name);
+                const file = new File([data as any], name);
                 await uploadFile(currentPath, file, (p) => {
                     setAlertModal({
                         isOpen: true,

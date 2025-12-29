@@ -3,7 +3,7 @@
 import React, { useEffect, useRef } from "react";
 import { APIFile, APIFolder, isFolder } from "@/lib/api";
 import {
-    FolderOpen, Download, Edit2, Trash2, ExternalLink, Link, Eye, Zip, FileArchive
+    FolderOpen, Download, Edit2, Trash2, ExternalLink, Link, Eye, Archive, FileArchive
 } from "lucide-react";
 
 interface ContextMenuProps {
@@ -61,7 +61,7 @@ export default function ContextMenu({ x, y, item, onClose, onAction }: ContextMe
                 onClick={() => onAction('compress', item)}
                 className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-200 hover:bg-white/10 rounded-lg transition-colors group"
             >
-                <Zip size={16} className="text-zinc-400 group-hover:text-amber-400" />
+                <Archive size={16} className="text-zinc-400 group-hover:text-amber-400" />
                 <span>Compress</span>
             </button>
 

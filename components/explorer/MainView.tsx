@@ -7,7 +7,7 @@ import {
     ArrowUp, ArrowDown, FolderPlus, UploadCloud, MoreHorizontal, RefreshCw,
     Trash2, Edit2, FileText, Folder as FolderIcon, Music, Image as ImageIcon, Video, File, Search, ArrowLeft,
     CheckSquare, Square, Check, ChevronUp, ChevronDown, List, LayoutGrid,
-    FileCode, Archive, FileSpreadsheet, FileJson, FileType as FileTypeIcon, Zip
+    FileCode, Archive, FileSpreadsheet, FileJson, FileType as FileTypeIcon
 } from "lucide-react";
 import ContextMenu from "@/components/ui/ContextMenu";
 import Breadcrumb from "@/components/Breadcrumb";
@@ -460,10 +460,6 @@ export default function MainView() {
                                 <Edit2 size={16} />
                             </button>
                         )}
-                        <div className="w-px h-4 bg-white/10" />
-                        <button onClick={handleCompress} className="p-2 hover:bg-white/10 text-amber-400 rounded-lg transition-colors" title="Compress Selected">
-                            <Zip size={16} />
-                        </button>
                         <div className="w-px h-4 bg-white/10" />
                         <button onClick={initiateDelete} className="p-2 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors" title="Delete">
                             <Trash2 size={16} />

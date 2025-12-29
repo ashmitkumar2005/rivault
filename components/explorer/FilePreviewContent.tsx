@@ -13,7 +13,7 @@ export default function FilePreviewContent({ item }: FilePreviewContentProps) {
     const [content, setContent] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [zipEntries, setZipEntries] = useState<string[] | null>(null);
+    const [zipItems, setZipItems] = useState<string[]>([]);
     const url = getDownloadUrl(item.id);
     const ext = item.name.split('.').pop()?.toLowerCase() || '';
 
@@ -42,8 +42,8 @@ export default function FilePreviewContent({ item }: FilePreviewContentProps) {
             fetch(url)
                 .then(res => res.blob())
                 .then(blob => listZipContents(blob))
-                .then(entries => {
-                    setZipEntries(entries);
+                .then(items => {
+                    setZipItems(items);
                     setLoading(false);
                 })
                 .catch(err => {
@@ -98,6 +98,34 @@ export default function FilePreviewContent({ item }: FilePreviewContentProps) {
         );
     }
 
+    // 4. ZIP Content Preview
+    if (ext === 'zip' && zipItems.length > 0) {
+        return (
+            <div className="w-full max-w-2xl glass-panel rounded-3xl border border-white/10 overflow-hidden flex flex-col animate-scale-in">
+                <div className="px-6 py-4 bg-white/5 border-b border-white/5 flex items-center space-x-3">
+                    <div className="p-2 bg-amber-500/20 rounded-xl">
+                        <Archive size={20} className="text-amber-400" />
+                    </div>
+                    <div>
+                        <h4 className="text-sm font-bold text-white uppercase tracking-wider">Archive Contents</h4>
+                        <p className="text-[10px] text-zinc-500">{zipItems.length} items found</p>
+                    </div>
+                </div>
+                <div className="flex-1 max-h-[50vh] overflow-y-auto custom-scrollbar p-2">
+                    {zipItems.map((name, i) => (
+                        <div key={i} className="flex items-center space-x-3 px-4 py-2 hover:bg-white/5 rounded-xl transition-colors group">
+                            <FileIcon size={14} className="text-zinc-500 group-hover:text-zinc-300" />
+                            <span className="text-xs text-zinc-300 group-hover:text-white truncate">{name}</span>
+                        </div>
+                    ))}
+                </div>
+                <div className="p-4 bg-zinc-950/30 text-center">
+                    <p className="text-[10px] text-zinc-600 font-medium italic">Double-click or right-click to extract full archive</p>
+                </div>
+            </div>
+        );
+    }
+
     // 4. Code / Text Preview
     if (loading) {
         return (
@@ -113,30 +141,6 @@ export default function FilePreviewContent({ item }: FilePreviewContentProps) {
             <div className="flex flex-col items-center justify-center space-y-4 text-red-400">
                 <AlertCircle size={48} />
                 <p className="text-sm">{error}</p>
-            </div>
-        );
-    }
-
-    if (zipEntries !== null) {
-        return (
-            <div className="w-full max-w-2xl h-full max-h-[70vh] glass-panel rounded-3xl border border-white/10 overflow-hidden flex flex-col animate-scale-in">
-                <div className="px-6 py-4 bg-white/5 border-b border-white/5 flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                        <Archive size={20} className="text-amber-400" />
-                        <span className="text-sm font-bold text-white tracking-wide">Archive Explorer</span>
-                    </div>
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{zipEntries.length} Items</span>
-                </div>
-                <div className="flex-1 overflow-auto custom-scrollbar p-2">
-                    <div className="space-y-1">
-                        {zipEntries.map((entry, i) => (
-                            <div key={i} className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-white/5 transition-colors group">
-                                <FileIcon size={16} className="text-zinc-500 group-hover:text-blue-400 shrink-0" />
-                                <span className="text-sm text-zinc-300 truncate">{entry}</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
             </div>
         );
     }

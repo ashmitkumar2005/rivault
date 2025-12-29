@@ -120,7 +120,7 @@ export default function Sidebar() {
             >
                 <div className={`flex items-center ${!isCollapsed ? 'md:space-x-3' : 'justify-center w-full'}`}>
                     <span className={isActive ? "text-blue-400" : "text-zinc-500 group-hover:text-zinc-400"}>{icon}</span>
-                    <span className={`hidden md:block font-medium ${isCollapsed ? 'hidden' : ''}`}>{label}</span>
+                    {!isCollapsed && <span className="hidden md:block font-medium animate-fade-in">{label}</span>}
                 </div>
             </button>
         );

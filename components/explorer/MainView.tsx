@@ -250,8 +250,6 @@ export default function MainView() {
             await handleRename(renameModal.id, newName);
             refresh();
         } catch (e: any) {
-            refresh();
-        } catch (e: any) {
             setAlertModal({ isOpen: true, title: 'Rename Failed', message: e.message });
         }
     };

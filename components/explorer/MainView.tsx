@@ -18,6 +18,7 @@ import PreviewModal from "./PreviewModal";
 import FilePreviewContent from "./FilePreviewContent";
 import FileSkeleton from "./FileSkeleton";
 import CompressModal from './CompressModal';
+import SelectionBox from './SelectionBox';
 import { createZip, extractZip } from "@/lib/archive";
 
 function formatSize(bytes: number) {
@@ -66,6 +67,12 @@ export default function MainView() {
     const [alertModal, setAlertModal] = useState<{ isOpen: boolean, title: string, message: string }>({ isOpen: false, title: '', message: '' });
     const [previewItem, setPreviewItem] = useState<APIFile | null>(null);
     const [compressModal, setCompressModal] = useState<{ isOpen: boolean, items: APIFile[] }>({ isOpen: false, items: [] });
+
+    // Box Selection State
+    const [isBoxSelecting, setIsBoxSelecting] = useState(false);
+    const [selectionStart, setSelectionStart] = useState<{ x: number, y: number } | null>(null);
+    const [selectionCurrent, setSelectionCurrent] = useState<{ x: number, y: number } | null>(null);
+    const selectionRef = React.useRef<{ start: { x: number, y: number } | null }>({ start: null });
 
     // Reset selection and search when path changes
     useEffect(() => {
@@ -440,6 +447,80 @@ export default function MainView() {
         }
     };
 
+    // --- Box Selection Logic ---
+    const handleMouseDown = (e: React.MouseEvent) => {
+        // Ignore if clicking on buttons or interactive elements
+        if ((e.target as HTMLElement).closest('button, input, a, .context-trigger')) return;
+        // Ignore if valid context menu click (usually handled by onContextMenu)
+        if (e.button !== 0) return;
+
+        setIsBoxSelecting(true);
+        const start = { x: e.clientX, y: e.clientY };
+        setSelectionStart(start);
+        setSelectionCurrent(start);
+        selectionRef.current.start = start;
+        // Reset specific flag for click handling
+        selectionRef.current.justFinishedSelection = false;
+
+        // Clear selection if not holding modifier
+        if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
+            setSelectedIds(new Set());
+        }
+    };
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (!isBoxSelecting || !selectionRef.current.start) return;
+
+        const current = { x: e.clientX, y: e.clientY };
+        setSelectionCurrent(current);
+
+        // Perform selection
+        const start = selectionRef.current.start;
+        const left = Math.min(start.x, current.x);
+        const top = Math.min(start.y, current.y);
+        const width = Math.abs(current.x - start.x);
+        const height = Math.abs(current.y - start.y);
+
+        const newSelected = new Set(e.shiftKey || e.ctrlKey || e.metaKey ? selectedIds : []);
+
+        // Find intersecting items
+        // This relies on DOM elements having data-id attribute. 
+        // We'll need to add data-id to file items.
+        const itemElements = document.querySelectorAll('[data-file-id]');
+        itemElements.forEach((el) => {
+            const rect = el.getBoundingClientRect();
+            // simple AABB collision
+            if (
+                left < rect.right &&
+                left + width > rect.left &&
+                top < rect.bottom &&
+                top + height > rect.top
+            ) {
+                const id = el.getAttribute('data-file-id');
+                if (id) newSelected.add(id);
+            }
+        });
+
+        setSelectedIds(newSelected);
+    };
+
+    const handleMouseUp = () => {
+        if (isBoxSelecting) {
+            setIsBoxSelecting(false);
+            setSelectionStart(null);
+            setSelectionCurrent(null);
+            setSelectionStart(null);
+            setSelectionCurrent(null);
+            selectionRef.current.start = null;
+            // Mark that we just finished a selection to block the subsequent click event
+            selectionRef.current.justFinishedSelection = true;
+            // Clear the flag after a short delay to allow normal clicks later
+            setTimeout(() => {
+                if (selectionRef.current) selectionRef.current.justFinishedSelection = false;
+            }, 100);
+        }
+    };
+
     // --- Drag & Drop ---
 
     const handleDragStart = (e: React.DragEvent, item: APIFile | APIFolder) => {
@@ -481,7 +562,16 @@ export default function MainView() {
             onDragLeave={handleGlobalDragLeave}
             onDragOver={handleGlobalDragOver}
             onDrop={handleGlobalDrop}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
             onClick={() => {
+                // If we just finished a box selection, don't clear the selection
+                if (selectionRef.current.justFinishedSelection) {
+                    selectionRef.current.justFinishedSelection = false;
+                    return;
+                }
+
                 setContextMenu(null);
                 setFocusedId(null);
                 // Should clicking empty space clear selection?
@@ -653,6 +743,7 @@ export default function MainView() {
                                         return (
                                             <div
                                                 key={item.id}
+                                                data-file-id={item.id} // Add for box selection
                                                 onClick={(e) => {
                                                     e.stopPropagation();
 
@@ -829,6 +920,9 @@ export default function MainView() {
                     </div>
                 )}
             </div>
+
+            {/* Drag Box Overlay */}
+            {isBoxSelecting && <SelectionBox start={selectionStart} current={selectionCurrent} />}
 
             {/* Context Menu */}
             {contextMenu && (

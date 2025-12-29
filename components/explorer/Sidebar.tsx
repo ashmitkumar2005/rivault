@@ -153,8 +153,8 @@ export default function Sidebar() {
 
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto px-1 py-2 scroll-smooth">
-                {/* Locations Header - Mobile Icon Only/Hidden on Collapse for cleaner look */}
-                <div className={`flex items-center justify-center ${!isCollapsed ? 'md:justify-start space-x-0 md:space-x-2' : 'hidden'} px-2 ${!isCollapsed ? 'md:px-4' : ''} mb-3 text-xs font-bold text-zinc-500 uppercase tracking-widest`}>
+                {/* Locations Header - Mobile Icon Only */}
+                <div className={`flex items-center justify-center ${!isCollapsed ? 'md:justify-start space-x-0 md:space-x-2' : ''} px-2 ${!isCollapsed ? 'md:px-4' : ''} mb-3 text-xs font-bold text-zinc-500 uppercase tracking-widest`}>
                     <HardDrive size={16} className="md:w-3 md:h-3" />
                     {!isCollapsed && <span className="hidden md:block animate-fade-in">Locations</span>}
                 </div>
@@ -163,7 +163,7 @@ export default function Sidebar() {
             </div>
 
             {/* File Type Filters */}
-            <div className={`px-2 ${!isCollapsed ? 'md:px-4' : ''} py-2 border-t border-white/5 ${isCollapsed ? 'items-center flex flex-col' : ''}`}>
+            <div className={`px-2 ${!isCollapsed ? 'md:px-4' : ''} py-2 border-t border-white/5`}>
                 {!isCollapsed && <div className="hidden md:block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3 animate-fade-in">File Types</div>}
                 {/* Mobile Separator */}
                 <div className={`${!isCollapsed ? 'md:hidden' : 'block'} h-px bg-white/5 my-2 mx-2`} />

@@ -891,25 +891,25 @@ export default function MainView() {
                 <p>{alertModal.message}</p>
             </Modal>
 
-            {/* Rich Media Previewer */}
-            {previewItem && (
-                {/* Premium Modals */ }
-                < CompressModal 
+            {/* Premium Modals */}
+            <CompressModal
                 isOpen={compressModal.isOpen}
-            onClose={() => setCompressModal({ ...compressModal, isOpen: false })}
-            onCompress={performCompression}
-            fileCount={compressModal.items.length} 
+                onClose={() => setCompressModal({ ...compressModal, isOpen: false })}
+                onCompress={performCompression}
+                fileCount={compressModal.items.length}
             />
 
-            <PreviewModal
-                isOpen={!!previewItem}
-                onClose={() => setPreviewItem(null)}
-                title={previewItem.name}
-                onDownload={() => window.open(getDownloadUrl(previewItem.id), "_blank")}
-                onExternal={() => window.open(getDownloadUrl(previewItem.id), "_blank")}
-            >
-                <FilePreviewContent item={previewItem} />
-            </PreviewModal>
+            {/* Rich Media Previewer */}
+            {previewItem && (
+                <PreviewModal
+                    isOpen={!!previewItem}
+                    onClose={() => setPreviewItem(null)}
+                    title={previewItem.name}
+                    onDownload={() => window.open(getDownloadUrl(previewItem.id), "_blank")}
+                    onExternal={() => window.open(getDownloadUrl(previewItem.id), "_blank")}
+                >
+                    <FilePreviewContent item={previewItem} />
+                </PreviewModal>
             )}
 
             {/* Branding Footer */}

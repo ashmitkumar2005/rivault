@@ -155,7 +155,7 @@ export default function Sidebar() {
             <div className="flex-1 overflow-y-auto px-1 py-2 scroll-smooth">
                 {/* Locations Header - Mobile Icon Only */}
                 <div className={`flex items-center justify-center ${!isCollapsed ? 'md:justify-start space-x-0 md:space-x-2' : ''} px-2 ${!isCollapsed ? 'md:px-4' : ''} mb-3 text-xs font-bold text-zinc-500 uppercase tracking-widest`}>
-                    <HardDrive size={16} className="md:w-3 md:h-3" />
+                    <HardDrive size={16} className={`${!isCollapsed ? 'md:w-3 md:h-3' : ''}`} />
                     {!isCollapsed && <span className="hidden md:block animate-fade-in">Locations</span>}
                 </div>
 
@@ -169,10 +169,10 @@ export default function Sidebar() {
                 <div className={`${!isCollapsed ? 'md:hidden' : 'block'} h-px bg-white/5 my-2 mx-2`} />
 
                 <div className="space-y-1">
-                    <FilterButton type="image" icon={<ImageIcon size={18} className="md:w-4 md:h-4" />} label="Images" count="JPG, PNG..." />
-                    <FilterButton type="video" icon={<Video size={18} className="md:w-4 md:h-4" />} label="Videos" count="MP4, MKV..." />
-                    <FilterButton type="audio" icon={<Music size={18} className="md:w-4 md:h-4" />} label="Music" count="MP3, WAV..." />
-                    <FilterButton type="document" icon={<FileText size={18} className="md:w-4 md:h-4" />} label="Documents" count="PDF, DOC..." />
+                    <FilterButton type="image" icon={<ImageIcon size={18} className={`${!isCollapsed ? 'md:w-4 md:h-4' : ''}`} />} label="Images" count="JPG, PNG..." />
+                    <FilterButton type="video" icon={<Video size={18} className={`${!isCollapsed ? 'md:w-4 md:h-4' : ''}`} />} label="Videos" count="MP4, MKV..." />
+                    <FilterButton type="audio" icon={<Music size={18} className={`${!isCollapsed ? 'md:w-4 md:h-4' : ''}`} />} label="Music" count="MP3, WAV..." />
+                    <FilterButton type="document" icon={<FileText size={18} className={`${!isCollapsed ? 'md:w-4 md:h-4' : ''}`} />} label="Documents" count="PDF, DOC..." />
                 </div>
             </div>
 
@@ -180,7 +180,7 @@ export default function Sidebar() {
             <div className={`p-2 ${!isCollapsed ? 'md:p-4 mx-1 md:mx-2' : 'mx-1'} mb-2 rounded-xl bg-gradient-to-br from-white/5 to-transparent border border-white/5`}>
                 <div className={`flex items-center justify-center ${!isCollapsed ? 'md:justify-between' : ''} text-xs text-zinc-400 mb-0 md:mb-2`}>
                     <div className={`flex items-center ${!isCollapsed ? 'md:space-x-2' : ''}`}>
-                        <PieChart size={16} className={`text-blue-400 md:w-3.5 md:h-3.5`} />
+                        <PieChart size={16} className={`text-blue-400 ${!isCollapsed ? 'md:w-3.5 md:h-3.5' : ''}`} />
                         {!isCollapsed && <span className="hidden md:inline animate-fade-in">Storage Used</span>}
                     </div>
                 </div>

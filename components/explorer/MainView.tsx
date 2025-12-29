@@ -901,7 +901,7 @@ export default function MainView() {
                                                     <FolderIcon size={48} className="text-yellow-500/80 group-hover:text-yellow-400 transition-colors" />
                                                 ) : (
                                                     <div className="w-12 h-12 flex items-center justify-center">
-                                                        {React.cloneElement(getFileIcon((item as APIFile).name) as React.ReactElement, { size: 40 })}
+                                                        {React.cloneElement(getFileIcon((item as APIFile).name) as any, { size: 40 })}
                                                     </div>
                                                 )}
                                             </div>

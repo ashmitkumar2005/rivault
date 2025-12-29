@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { AuthProvider } from "@/components/providers/AuthProvider";
+import SmoothScroll from "@/components/ui/SmoothScroll";
 
 const sfPro = localFont({
   src: "./fonts/SF-Pro-Display-Regular.otf",
@@ -25,6 +26,7 @@ export default function RootLayout({
       <body
         className={`${sfPro.variable} font-sans antialiased bg-black text-white`}
       >
+        <SmoothScroll />
         <AuthProvider>
           {children}
         </AuthProvider>

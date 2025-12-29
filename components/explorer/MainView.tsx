@@ -46,7 +46,7 @@ export default function MainView() {
     const {
         currentPath, items, isLoading, error, refresh,
         navigateTo, goUp, breadcrumbs, navigateToBreadcrumb,
-        handleDelete, handleRename, fileTypeFilter,
+        handleDelete, handleRename, handleMove, fileTypeFilter,
         viewMode, toggleViewMode
     } = useFileSystem();
 

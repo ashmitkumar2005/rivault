@@ -17,6 +17,7 @@ import Modal from "@/components/ui/Modal";
 import PreviewModal from "./PreviewModal";
 import FilePreviewContent from "./FilePreviewContent";
 import FileSkeleton from "./FileSkeleton";
+import CompressModal from './CompressModal';
 import { createZip, extractZip } from "@/lib/archive";
 
 function formatSize(bytes: number) {
@@ -64,6 +65,7 @@ export default function MainView() {
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean, count: number }>({ isOpen: false, count: 0 });
     const [alertModal, setAlertModal] = useState<{ isOpen: boolean, title: string, message: string }>({ isOpen: false, title: '', message: '' });
     const [previewItem, setPreviewItem] = useState<APIFile | null>(null);
+    const [compressModal, setCompressModal] = useState<{ isOpen: boolean, items: APIFile[] }>({ isOpen: false, items: [] });
 
     // Reset selection and search when path changes
     useEffect(() => {
@@ -354,12 +356,17 @@ export default function MainView() {
             itemsToZip = items.filter(i => selectedIds.has(i.id) && !isFolder(i)) as APIFile[];
         }
 
-        try {
-            if (itemsToZip.length === 0) {
-                setAlertModal({ isOpen: true, title: 'Info', message: 'You can only compress files at the moment.' });
-                return;
-            }
+        if (itemsToZip.length === 0) {
+            setAlertModal({ isOpen: true, title: 'Info', message: 'You can only compress files at the moment.' });
+            return;
+        }
 
+        setCompressModal({ isOpen: true, items: itemsToZip });
+    };
+
+    const performCompression = async (name: string, level: number, password?: string) => {
+        try {
+            const itemsToZip = compressModal.items;
             setAlertModal({ isOpen: true, title: 'Compressing...', message: `Preparing ${itemsToZip.length} files.` });
 
             const filesForZip = [];
@@ -369,8 +376,11 @@ export default function MainView() {
                 filesForZip.push({ name: item.name, data: new Uint8Array(buffer) });
             }
 
-            const zipBlob = await createZip(filesForZip);
-            const zipFile = new File([zipBlob], `Archive_${new Date().getTime()}.zip`, { type: 'application/zip' });
+            const zipBlob = await createZip(filesForZip, { level, password });
+
+            // Ensure .zip extension
+            const finalName = name.endsWith('.zip') ? name : `${name}.zip`;
+            const zipFile = new File([zipBlob], finalName, { type: 'application/zip' });
 
             await uploadFile(currentPath, zipFile, (p) => {
                 setAlertModal({ isOpen: true, title: 'Uploading Archive...', message: `${Math.round(p)}%` });
@@ -381,6 +391,8 @@ export default function MainView() {
             refresh();
         } catch (e: any) {
             setAlertModal({ isOpen: true, title: 'Compression Failed', message: e.message });
+        } finally {
+            setCompressModal({ isOpen: false, items: [] }); // Close modal regardless of success/failure
         }
     };
 
@@ -881,15 +893,23 @@ export default function MainView() {
 
             {/* Rich Media Previewer */}
             {previewItem && (
-                <PreviewModal
-                    isOpen={!!previewItem}
-                    onClose={() => setPreviewItem(null)}
-                    title={previewItem.name}
-                    onDownload={() => window.open(getDownloadUrl(previewItem.id), "_blank")}
-                    onExternal={() => window.open(getDownloadUrl(previewItem.id), "_blank")}
-                >
-                    <FilePreviewContent item={previewItem} />
-                </PreviewModal>
+                {/* Premium Modals */ }
+                < CompressModal 
+                isOpen={compressModal.isOpen}
+            onClose={() => setCompressModal({ ...compressModal, isOpen: false })}
+            onCompress={performCompression}
+            fileCount={compressModal.items.length} 
+            />
+
+            <PreviewModal
+                isOpen={!!previewItem}
+                onClose={() => setPreviewItem(null)}
+                title={previewItem.name}
+                onDownload={() => window.open(getDownloadUrl(previewItem.id), "_blank")}
+                onExternal={() => window.open(getDownloadUrl(previewItem.id), "_blank")}
+            >
+                <FilePreviewContent item={previewItem} />
+            </PreviewModal>
             )}
 
             {/* Branding Footer */}

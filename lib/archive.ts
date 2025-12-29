@@ -3,7 +3,10 @@ import * as fflate from 'fflate';
 /**
  * Zips multiple files into a single ZIP blob.
  */
-export async function createZip(files: { name: string, data: Uint8Array }[]): Promise<Blob> {
+export async function createZip(
+    files: { name: string, data: Uint8Array }[],
+    options: { password?: string, level?: number } = {}
+): Promise<Blob> {
     const zipData: fflate.Zippable = {};
 
     files.forEach(file => {
@@ -11,7 +14,7 @@ export async function createZip(files: { name: string, data: Uint8Array }[]): Pr
     });
 
     return new Promise((resolve, reject) => {
-        fflate.zip(zipData, (err, data) => {
+        fflate.zip(zipData, { level: options.level ?? 6, password: options.password }, (err, data) => {
             if (err) reject(err);
             else resolve(new Blob([data], { type: 'application/zip' }));
         });

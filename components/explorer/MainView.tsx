@@ -203,12 +203,8 @@ export default function MainView() {
         // Standard: Right click selects/focuses the target.
         if (!selectedIds.has(item.id)) {
             setFocusedId(item.id);
-            // Should we clear selection? Probably yes, unless Ctrl held.
-            // But existing behavior was "Adding to selection".
-            // Let's stick to: "Right Click on unselected item -> Focus it, Clear Selection"
-            if (selectedIds.size > 0 && !selectedIds.has(item.id)) {
-                setSelectedIds(new Set());
-            }
+            // Fix: Explicitly select the item on right click if not already selected
+            setSelectedIds(new Set([item.id]));
         }
         setContextMenu({
             x: e.clientX,
@@ -347,11 +343,18 @@ export default function MainView() {
         }
     };
 
-    const handleCompress = async () => {
-        if (selectedIds.size === 0) return;
+    const handleCompress = async (targetItem?: APIFile) => {
+        // Fallback or explicit item selection for compression
+        let itemsToZip: APIFile[] = [];
+
+        if (targetItem) {
+            itemsToZip = [targetItem];
+        } else {
+            if (selectedIds.size === 0) return;
+            itemsToZip = items.filter(i => selectedIds.has(i.id) && !isFolder(i)) as APIFile[];
+        }
 
         try {
-            const itemsToZip = items.filter(i => selectedIds.has(i.id) && !isFolder(i)) as APIFile[];
             if (itemsToZip.length === 0) {
                 setAlertModal({ isOpen: true, title: 'Info', message: 'You can only compress files at the moment.' });
                 return;
@@ -398,7 +401,7 @@ export default function MainView() {
                 if (!isFolder(item)) handleExtract(item as APIFile);
                 break;
             case 'compress':
-                handleCompress();
+                if (!isFolder(item)) handleCompress(item as APIFile);
                 break;
             case 'rename':
                 setSelectedIds(new Set([item.id]));

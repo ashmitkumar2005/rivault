@@ -55,6 +55,8 @@ export default function MainView() {
     const [isSelectMode, setIsSelectMode] = useState(false);
     const [sortConfig, setSortConfig] = useState<{ key: 'name' | 'size' | 'date', direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
     const [dragOverId, setDragOverId] = useState<string | null>(null);
+    const [isDraggingFile, setIsDraggingFile] = useState(false); // New state for OS file drag
+    const dragCounter = React.useRef(0); // To handle enter/leave nesting
 
     // Modal States
     const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -248,7 +250,67 @@ export default function MainView() {
             await handleRename(renameModal.id, newName);
             refresh();
         } catch (e: any) {
+            refresh();
+        } catch (e: any) {
             setAlertModal({ isOpen: true, title: 'Rename Failed', message: e.message });
+        }
+    };
+
+    // --- Global Drag and Drop Handlers ---
+    const handleGlobalDragEnter = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter.current += 1;
+
+        // Check if dragging files from OS
+        if (e.dataTransfer.types && Array.from(e.dataTransfer.types).includes("Files")) {
+            setIsDraggingFile(true);
+        }
+    };
+
+    const handleGlobalDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter.current -= 1;
+
+        if (dragCounter.current === 0) {
+            setIsDraggingFile(false);
+        }
+    };
+
+    const handleGlobalDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    const handleGlobalDrop = async (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDraggingFile(false);
+        dragCounter.current = 0;
+
+        // Check if it's an OS file drop
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            const files = Array.from(e.dataTransfer.files);
+
+            // Re-use upload logic
+            let completed = 0;
+            const total = files.length;
+
+            for (const file of files) {
+                try {
+                    setUploadProgress({ name: file.name, percent: 0 });
+                    await uploadFile(currentPath, file, (progress) => {
+                        setUploadProgress({ name: file.name, percent: progress });
+                    });
+                    completed++;
+                } catch (err: any) {
+                    setAlertModal({ isOpen: true, title: 'Upload Failed', message: `Failed to upload ${file.name}: ${err.message}` });
+                }
+            }
+
+            setUploadProgress(null);
+            if (completed > 0) refresh();
         }
     };
 
@@ -401,7 +463,11 @@ export default function MainView() {
 
     return (
         <div
-            className="flex-1 flex flex-col relative overflow-hidden backdrop-blur-sm bg-black/30"
+            className="flex-1 flex flex-col bg-zinc-900/50 backdrop-blur-xl relative"
+            onDragEnter={handleGlobalDragEnter}
+            onDragLeave={handleGlobalDragLeave}
+            onDragOver={handleGlobalDragOver}
+            onDrop={handleGlobalDrop}
             onClick={() => {
                 setContextMenu(null);
                 setFocusedId(null);

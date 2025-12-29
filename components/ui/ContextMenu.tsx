@@ -3,7 +3,7 @@
 import React, { useEffect, useRef } from "react";
 import { APIFile, APIFolder, isFolder } from "@/lib/api";
 import {
-    FolderOpen, Download, Edit2, Trash2, ExternalLink, Link, Eye
+    FolderOpen, Download, Edit2, Trash2, ExternalLink, Link, Eye, Zip, FileArchive
 } from "lucide-react";
 
 interface ContextMenuProps {
@@ -57,8 +57,25 @@ export default function ContextMenu({ x, y, item, onClose, onAction }: ContextMe
                 <span>{isDir ? 'Open' : 'Preview'}</span>
             </button>
 
+            <button
+                onClick={() => onAction('compress', item)}
+                className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-200 hover:bg-white/10 rounded-lg transition-colors group"
+            >
+                <Zip size={16} className="text-zinc-400 group-hover:text-amber-400" />
+                <span>Compress</span>
+            </button>
+
             {!isDir && (
                 <>
+                    {item.name.toLowerCase().endsWith('.zip') && (
+                        <button
+                            onClick={() => onAction('extract', item)}
+                            className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-200 hover:bg-white/10 rounded-lg transition-colors group"
+                        >
+                            <FileArchive size={16} className="text-zinc-400 group-hover:text-green-400" />
+                            <span>Extract to Here</span>
+                        </button>
+                    )}
                     <button
                         onClick={() => onAction('preview', item)}
                         className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-200 hover:bg-white/10 rounded-lg transition-colors group"

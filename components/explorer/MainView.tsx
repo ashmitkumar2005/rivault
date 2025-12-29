@@ -7,7 +7,7 @@ import {
     ArrowUp, ArrowDown, FolderPlus, UploadCloud, MoreHorizontal, RefreshCw,
     Trash2, Edit2, FileText, Folder as FolderIcon, Music, Image as ImageIcon, Video, File, Search, ArrowLeft,
     CheckSquare, Square, Check, ChevronUp, ChevronDown, List, LayoutGrid,
-    FileCode, Archive, FileSpreadsheet, FileJson, FileType as FileTypeIcon
+    FileCode, Archive, FileSpreadsheet, FileJson, FileType as FileTypeIcon, Zip
 } from "lucide-react";
 import ContextMenu from "@/components/ui/ContextMenu";
 import Breadcrumb from "@/components/Breadcrumb";
@@ -17,6 +17,7 @@ import Modal from "@/components/ui/Modal";
 import PreviewModal from "./PreviewModal";
 import FilePreviewContent from "./FilePreviewContent";
 import FileSkeleton from "./FileSkeleton";
+import { createZip, extractZip } from "@/lib/archive";
 
 function formatSize(bytes: number) {
     if (bytes === 0) return '0 B';
@@ -251,6 +252,75 @@ export default function MainView() {
         }
     };
 
+    const handleExtract = async (item: APIFile) => {
+        try {
+            setAlertModal({ isOpen: true, title: 'Extracting...', message: `Unzipping ${item.name}. Please wait.` });
+
+            const res = await fetch(getDownloadUrl(item.id));
+            if (!res.ok) throw new Error("Failed to fetch archive");
+            const blob = await res.blob();
+
+            const unzipped = await extractZip(blob);
+
+            const files = Object.entries(unzipped);
+            const total = files.length;
+
+            for (let i = 0; i < total; i++) {
+                const [name, data] = files[i];
+                // Skip directories (fflate represents them with trailing slash and empty data)
+                if (name.endsWith('/')) continue;
+
+                const file = new File([data], name);
+                await uploadFile(currentPath, file, (p) => {
+                    setAlertModal({
+                        isOpen: true,
+                        title: 'Extracting...',
+                        message: `Processing file ${i + 1} of ${total}: ${name} (${Math.round(p)}%)`
+                    });
+                });
+            }
+
+            setAlertModal({ isOpen: true, title: 'Success', message: `Extracted ${total} items successfully.` });
+            refresh();
+        } catch (e: any) {
+            setAlertModal({ isOpen: true, title: 'Extraction Failed', message: e.message });
+        }
+    };
+
+    const handleCompress = async () => {
+        if (selectedIds.size === 0) return;
+
+        try {
+            const itemsToZip = items.filter(i => selectedIds.has(i.id) && !isFolder(i)) as APIFile[];
+            if (itemsToZip.length === 0) {
+                setAlertModal({ isOpen: true, title: 'Info', message: 'You can only compress files at the moment.' });
+                return;
+            }
+
+            setAlertModal({ isOpen: true, title: 'Compressing...', message: `Preparing ${itemsToZip.length} files.` });
+
+            const filesForZip = [];
+            for (const item of itemsToZip) {
+                const res = await fetch(getDownloadUrl(item.id));
+                const buffer = await res.arrayBuffer();
+                filesForZip.push({ name: item.name, data: new Uint8Array(buffer) });
+            }
+
+            const zipBlob = await createZip(filesForZip);
+            const zipFile = new File([zipBlob], `Archive_${new Date().getTime()}.zip`, { type: 'application/zip' });
+
+            await uploadFile(currentPath, zipFile, (p) => {
+                setAlertModal({ isOpen: true, title: 'Uploading Archive...', message: `${Math.round(p)}%` });
+            });
+
+            setAlertModal({ isOpen: true, title: 'Success', message: 'Archive created successfully.' });
+            setSelectedIds(new Set());
+            refresh();
+        } catch (e: any) {
+            setAlertModal({ isOpen: true, title: 'Compression Failed', message: e.message });
+        }
+    };
+
     const handleContextAction = (action: string, item: APIFile | APIFolder) => {
         setContextMenu(null);
 
@@ -263,6 +333,12 @@ export default function MainView() {
                 break;
             case 'download':
                 window.open(getDownloadUrl(item.id), "_blank");
+                break;
+            case 'extract':
+                if (!isFolder(item)) handleExtract(item as APIFile);
+                break;
+            case 'compress':
+                handleCompress();
                 break;
             case 'rename':
                 setSelectedIds(new Set([item.id]));
@@ -384,6 +460,10 @@ export default function MainView() {
                                 <Edit2 size={16} />
                             </button>
                         )}
+                        <div className="w-px h-4 bg-white/10" />
+                        <button onClick={handleCompress} className="p-2 hover:bg-white/10 text-amber-400 rounded-lg transition-colors" title="Compress Selected">
+                            <Zip size={16} />
+                        </button>
                         <div className="w-px h-4 bg-white/10" />
                         <button onClick={initiateDelete} className="p-2 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors" title="Delete">
                             <Trash2 size={16} />

@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { APIFile, getDownloadUrl } from '@/lib/api';
-import { FileText, Music, Play, AlertCircle, Loader2 } from 'lucide-react';
+import { FileText, Music, Play, AlertCircle, Loader2, Archive, File as FileIcon } from 'lucide-react';
+import { listZipContents } from '@/lib/archive';
 
 interface FilePreviewContentProps {
     item: APIFile;
@@ -12,6 +13,7 @@ export default function FilePreviewContent({ item }: FilePreviewContentProps) {
     const [content, setContent] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [zipEntries, setZipEntries] = useState<string[] | null>(null);
     const url = getDownloadUrl(item.id);
     const ext = item.name.split('.').pop()?.toLowerCase() || '';
 
@@ -27,6 +29,21 @@ export default function FilePreviewContent({ item }: FilePreviewContentProps) {
                 })
                 .then(text => {
                     setContent(text);
+                    setLoading(false);
+                })
+                .catch(err => {
+                    setError(err.message);
+                    setLoading(false);
+                });
+        }
+
+        if (ext === 'zip') {
+            setLoading(true);
+            fetch(url)
+                .then(res => res.blob())
+                .then(blob => listZipContents(blob))
+                .then(entries => {
+                    setZipEntries(entries);
                     setLoading(false);
                 })
                 .catch(err => {
@@ -96,6 +113,30 @@ export default function FilePreviewContent({ item }: FilePreviewContentProps) {
             <div className="flex flex-col items-center justify-center space-y-4 text-red-400">
                 <AlertCircle size={48} />
                 <p className="text-sm">{error}</p>
+            </div>
+        );
+    }
+
+    if (zipEntries !== null) {
+        return (
+            <div className="w-full max-w-2xl h-full max-h-[70vh] glass-panel rounded-3xl border border-white/10 overflow-hidden flex flex-col animate-scale-in">
+                <div className="px-6 py-4 bg-white/5 border-b border-white/5 flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                        <Archive size={20} className="text-amber-400" />
+                        <span className="text-sm font-bold text-white tracking-wide">Archive Explorer</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{zipEntries.length} Items</span>
+                </div>
+                <div className="flex-1 overflow-auto custom-scrollbar p-2">
+                    <div className="space-y-1">
+                        {zipEntries.map((entry, i) => (
+                            <div key={i} className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-white/5 transition-colors group">
+                                <FileIcon size={16} className="text-zinc-500 group-hover:text-blue-400 shrink-0" />
+                                <span className="text-sm text-zinc-300 truncate">{entry}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
             </div>
         );
     }

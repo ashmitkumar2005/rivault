@@ -5,7 +5,7 @@ import { useFileSystem } from "@/components/providers/FileSystemProvider";
 import { APIFile, APIFolder, APINode, isFolder, uploadFile, createFolder, getDownloadUrl, moveNode } from "@/lib/api";
 import {
     ArrowUp, ArrowDown, FolderPlus, UploadCloud, MoreHorizontal, RefreshCw,
-    Trash2, Edit2, FileText, Folder as FolderIcon, Music, Image as ImageIcon, Video, File, Search, ArrowLeft,
+    Trash2, Edit2, FileText, Folder as FolderIcon, Music, Image as ImageIcon, Video, File as LucideFile, Search, ArrowLeft,
     CheckSquare, Square, Check, ChevronUp, ChevronDown, List, LayoutGrid,
     FileCode, Archive, FileSpreadsheet, FileJson, FileType as FileTypeIcon
 } from "lucide-react";

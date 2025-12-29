@@ -128,7 +128,7 @@ export default function Sidebar() {
 
     return (
         <div
-            className={`w-16 ${isCollapsed ? 'md:w-20' : 'md:w-64'} glass-panel border-r-0 border-r-white/5 flex flex-col h-full z-20 shadow-2xl backdrop-blur-xl bg-black/40 transition-all duration-300 relative group/sidebar`}
+            className={`w-16 ${isCollapsed ? 'md:w-16' : 'md:w-64'} glass-panel border-r-0 border-r-white/5 flex flex-col h-full z-20 shadow-2xl backdrop-blur-xl bg-black/40 transition-all duration-300 relative group/sidebar`}
         >
             {/* Collapse Toggle Button */}
             <button

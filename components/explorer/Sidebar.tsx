@@ -36,11 +36,11 @@ function FolderNode({ folder, depth = 0, isCollapsed }: { folder: APIFolder; dep
     return (
         <div className="select-none animate-fade-in group/node">
             <div
-                className={`group flex items-center py-2 px-2 md:px-3 cursor-pointer rounded-lg mx-1 md:mx-2 transition-all duration-200 justify-center ${!isCollapsed ? 'md:justify-start' : 'md:justify-center md:px-0 md:mx-1'} ${isActive
+                className={`group flex items-center py-2 px-2 md:px-3 cursor-pointer rounded-lg mx-1 md:mx-2 transition-all duration-200 justify-center ${!isCollapsed ? 'md:justify-start' : ''} ${isActive
                     ? "bg-blue-600/20 text-blue-200 border border-blue-500/20"
                     : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
                     }`}
-                // Remove padding indentation on mobile or when collapsed to keep icons centered
+                // Remove padding indentation on mobile or when collapsed
                 style={{ paddingLeft: (typeof window !== 'undefined' && window.innerWidth >= 768 && !isCollapsed) ? `${depth * 12 + 12}px` : undefined }}
                 onClick={handleClick}
                 title={isCollapsed ? folder.name : undefined}
@@ -65,7 +65,7 @@ function FolderNode({ folder, depth = 0, isCollapsed }: { folder: APIFolder; dep
 
                 {/* Folder Icon */}
                 <span className={`transition-colors ${!isCollapsed ? 'md:mr-2.5' : ''} ${isActive ? "text-blue-400" : "text-yellow-500/80 group-hover:text-yellow-400"}`}>
-                    {isOpen ? <FolderOpen size={20} className="md:w-5 md:h-5" /> : <Folder size={20} className="md:w-5 md:h-5" />}
+                    {isOpen ? <FolderOpen size={20} className={`${!isCollapsed ? 'md:w-4 md:h-4' : ''}`} /> : <Folder size={20} className={`${!isCollapsed ? 'md:w-4 md:h-4' : ''}`} />}
                 </span>
 
                 {!isCollapsed && <span className="hidden md:block truncate text-sm font-medium tracking-wide animate-fade-in">{folder.name}</span>}
@@ -112,7 +112,7 @@ export default function Sidebar() {
         return (
             <button
                 onClick={() => setFileTypeFilter(isActive ? 'all' : type)}
-                className={`w-full flex items-center justify-center ${!isCollapsed ? 'md:justify-between px-2 md:px-3' : 'md:justify-center px-0'} py-2 rounded-lg transition-all text-sm group ${isActive
+                className={`w-full flex items-center justify-center ${!isCollapsed ? 'md:justify-between px-2 md:px-3' : ''} py-2 rounded-lg transition-all text-sm group ${isActive
                     ? "bg-blue-600/20 text-blue-200 border border-blue-500/20"
                     : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
                     }`}
@@ -120,7 +120,7 @@ export default function Sidebar() {
             >
                 <div className={`flex items-center ${!isCollapsed ? 'md:space-x-3' : 'justify-center w-full'}`}>
                     <span className={isActive ? "text-blue-400" : "text-zinc-500 group-hover:text-zinc-400"}>{icon}</span>
-                    {!isCollapsed && <span className="hidden md:block font-medium animate-fade-in">{label}</span>}
+                    {!isCollapsed && <span className="hidden md:block font-medium">{label}</span>}
                 </div>
             </button>
         );
@@ -139,7 +139,7 @@ export default function Sidebar() {
             </button>
 
             {/* Logo Section */}
-            <div className={`p-4 md:p-6 pb-2 flex items-center justify-center ${!isCollapsed ? 'md:justify-start' : 'md:p-4'} mb-4`}>
+            <div className={`p-4 md:p-6 pb-2 flex items-center justify-center ${!isCollapsed ? 'md:justify-start' : ''} mb-4`}>
                 <div className={`relative w-8 h-8 md:w-9 md:h-9 ${!isCollapsed ? 'md:mr-3' : ''} group shrink-0`}>
                     <div className="absolute inset-0 bg-blue-500/20 blur-lg rounded-full opacity-50 group-hover:opacity-100 transition-opacity" />
                     <Image src="/logo.svg" alt="Rivault Logo" fill className="object-contain relative z-10" />
@@ -178,13 +178,10 @@ export default function Sidebar() {
 
             {/* Storage Section */}
             <div className="p-2 md:p-4 mx-1 md:mx-2 mb-2 rounded-xl bg-gradient-to-br from-white/5 to-transparent border border-white/5">
-                <div className={`flex items-center justify-center ${!isCollapsed ? 'md:justify-between mb-0 md:mb-2' : 'flex-col'} text-xs text-zinc-400`}>
-                    <div className={`flex items-center ${!isCollapsed ? 'md:space-x-2' : 'flex-col md:flex-col'} justify-center`}>
-                        <PieChart size={16} className={`text-blue-400 md:w-3.5 md:h-3.5 ${!isCollapsed ? '' : 'mb-1'}`} />
-                        {!isCollapsed
-                            ? <span className="hidden md:inline animate-fade-in">Storage Used</span>
-                            : <span className="text-[10px] text-zinc-500 font-mono animate-fade-in whitespace-nowrap">{formatSize(storageUsage)}</span>
-                        }
+                <div className={`flex items-center justify-center ${!isCollapsed ? 'md:justify-between' : ''} text-xs text-zinc-400 mb-0 md:mb-2`}>
+                    <div className={`flex items-center ${!isCollapsed ? 'md:space-x-2' : ''}`}>
+                        <PieChart size={16} className={`text-blue-400 md:w-3.5 md:h-3.5`} />
+                        {!isCollapsed && <span className="hidden md:inline animate-fade-in">Storage Used</span>}
                     </div>
                 </div>
                 {!isCollapsed && (
@@ -193,8 +190,8 @@ export default function Sidebar() {
                         <span className="text-[10px] text-zinc-500 font-mono mb-1">UNLIMITED</span>
                     </div>
                 )}
-                {/* Mobile Usage Text */}
-                <div className="md:hidden text-[10px] text-zinc-400 text-center mt-1">
+                {/* Mobile Usage Text - Show when collapsed logic mimics mobile */}
+                <div className={`${!isCollapsed ? 'md:hidden' : 'block'} text-[10px] text-zinc-400 text-center mt-1`}>
                     {formatSize(storageUsage)}
                 </div>
             </div>

@@ -72,7 +72,7 @@ export default function MainView() {
     const [isBoxSelecting, setIsBoxSelecting] = useState(false);
     const [selectionStart, setSelectionStart] = useState<{ x: number, y: number } | null>(null);
     const [selectionCurrent, setSelectionCurrent] = useState<{ x: number, y: number } | null>(null);
-    const selectionRef = React.useRef<{ start: { x: number, y: number } | null }>({ start: null });
+    const selectionRef = React.useRef<{ start: { x: number, y: number } | null, justFinishedSelection?: boolean }>({ start: null, justFinishedSelection: false });
 
     // Reset selection and search when path changes
     useEffect(() => {

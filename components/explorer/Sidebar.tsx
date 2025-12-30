@@ -136,7 +136,7 @@ export default function Sidebar() {
 
     return (
         <div
-            className={`w-16 ${isCollapsed ? 'md:w-16' : 'md:w-64'} glass-panel border-r-0 border-r-white/5 flex flex-col h-full z-20 shadow-2xl backdrop-blur-xl bg-black/40 transition-all duration-300 relative group/sidebar`}
+            className={`w-16 ${isCollapsed ? 'md:w-16' : 'md:w-64'} flex flex-col h-full z-20 shadow-[0_0_20px_rgba(255,255,255,0.08)] backdrop-blur-xl bg-transparent transition-all duration-300 relative group/sidebar`}
         >
             {/* Collapse Toggle Button */}
             <button
@@ -171,10 +171,10 @@ export default function Sidebar() {
             </div>
 
             {/* File Type Filters */}
-            <div className={`px-2 ${!isCollapsed ? 'md:px-4' : ''} py-2 border-t border-white/5`}>
+            <div className={`px-2 ${!isCollapsed ? 'md:px-4' : ''} py-2`}>
                 {!isCollapsed && <div className="hidden md:block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3 animate-fade-in">File Types</div>}
                 {/* Mobile Separator */}
-                <div className={`${!isCollapsed ? 'md:hidden' : 'block'} h-px bg-white/5 my-2 mx-2`} />
+                <div className={`${!isCollapsed ? 'md:hidden' : 'block'} h-px bg-white/0 my-2 mx-2`} />
 
                 <div className="space-y-1">
                     <FilterButton type="image" icon={<ImageIcon size={18} className={`${!isCollapsed ? 'md:w-4 md:h-4' : ''}`} />} label="Images" count="JPG, PNG..." />
@@ -185,7 +185,7 @@ export default function Sidebar() {
             </div>
 
             {/* Storage Section */}
-            <div className={`p-2 ${!isCollapsed ? 'md:p-4 mx-1 md:mx-2' : 'mx-1'} mb-2 rounded-xl bg-gradient-to-br from-white/5 to-transparent border border-white/5`}>
+            <div className={`p-2 ${!isCollapsed ? 'md:p-4 mx-1 md:mx-2' : 'mx-1'} mb-2 rounded-xl bg-blue-500/5`}>
                 <div className={`flex items-center justify-center ${!isCollapsed ? 'md:justify-between' : ''} text-xs text-zinc-400 mb-0 md:mb-2`}>
                     <div className={`flex items-center ${!isCollapsed ? 'md:space-x-2' : ''}`}>
                         <PieChart size={16} className={`text-blue-400 ${!isCollapsed ? 'md:w-3.5 md:h-3.5' : ''}`} />

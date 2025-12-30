@@ -55,6 +55,7 @@ export default function MainView() {
     const [focusedId, setFocusedId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [isSelectMode, setIsSelectMode] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [sortConfig, setSortConfig] = useState<{ key: 'name' | 'size' | 'date', direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
     const [dragOverId, setDragOverId] = useState<string | null>(null);
     const [isDraggingFile, setIsDraggingFile] = useState(false); // New state for OS file drag
@@ -134,7 +135,17 @@ export default function MainView() {
     }, [items, searchQuery, fileTypeFilter, sortConfig]);
 
     // Context Menu State
-    const [contextMenu, setContextMenu] = useState<{ x: number, y: number, item: APIFile | APIFolder } | null>(null);
+    const [contextMenu, setContextMenu] = useState<{ x: number, y: number, item?: APIFile | APIFolder, type?: 'item' | 'background' } | null>(null);
+
+    const onBackgroundContextMenu = (e: React.MouseEvent) => {
+        e.preventDefault();
+        // Only show background menu if we didn't right-click an item (stopPropagation handled by items)
+        setContextMenu({
+            x: e.clientX,
+            y: e.clientY,
+            type: 'background'
+        });
+    };
 
     // --- Toolbar Actions ---
 
@@ -208,6 +219,7 @@ export default function MainView() {
 
     const onRightClick = (e: React.MouseEvent, item: APIFile | APIFolder) => {
         e.preventDefault();
+        e.stopPropagation(); // Prevent background menu from appearing
         // If not selected, select it? Or just focus it?
         // Standard: Right click selects/focuses the target.
         if (!selectedIds.has(item.id)) {
@@ -403,48 +415,100 @@ export default function MainView() {
         }
     };
 
-    const handleContextAction = (action: string, item: APIFile | APIFolder) => {
+    const handleContextAction = async (action: string, item?: APIFile | APIFolder) => {
         setContextMenu(null);
 
         switch (action) {
             case 'open':
-                onDoubleClick(item);
+                if (item) onDoubleClick(item);
                 break;
             case 'preview':
-                if (!isFolder(item)) setPreviewItem(item as APIFile);
+                if (item && !isFolder(item)) setPreviewItem(item as APIFile);
                 break;
             case 'download':
-                window.open(getDownloadUrl(item.id), "_blank");
+                if (item) window.open(getDownloadUrl(item.id), "_blank");
                 break;
             case 'extract':
-                if (!isFolder(item)) handleExtract(item as APIFile);
+                if (item && !isFolder(item)) handleExtract(item as APIFile);
                 break;
             case 'compress':
-                if (!isFolder(item)) handleCompress(item as APIFile);
+                if (item && !isFolder(item)) handleCompress(item as APIFile);
                 break;
             case 'rename':
-                setSelectedIds(new Set([item.id]));
-                setRenameModal({ isOpen: true, id: item.id, name: item.name });
+                if (item) {
+                    setSelectedIds(new Set([item.id]));
+                    setRenameModal({ isOpen: true, id: item.id, name: item.name });
+                }
                 break;
             case 'delete':
-                if (!selectedIds.has(item.id)) {
-                    setSelectedIds(new Set([item.id]));
-                    setDeleteModal({ isOpen: true, count: 1 });
-                } else {
-                    setDeleteModal({ isOpen: true, count: selectedIds.size });
+                if (item) {
+                    if (!selectedIds.has(item.id)) {
+                        setSelectedIds(new Set([item.id]));
+                        setDeleteModal({ isOpen: true, count: 1 });
+                    } else {
+                        setDeleteModal({ isOpen: true, count: selectedIds.size });
+                    }
                 }
                 break;
             case 'copy-link':
-                const url = getDownloadUrl(item.id);
-                // Try to get absolute URL
-                const absoluteUrl = url.startsWith('http') ? url : (window.location.origin + url);
-                navigator.clipboard.writeText(absoluteUrl).then(() => {
-                    setAlertModal({ isOpen: true, title: 'Link Copied', message: 'Download link copied to clipboard!' });
-                }).catch(err => {
-                    setAlertModal({ isOpen: true, title: 'Error', message: 'Failed to copy link: ' + err.message });
-                });
+                if (item) {
+                    const url = getDownloadUrl(item.id);
+                    const absoluteUrl = url.startsWith('http') ? url : (window.location.origin + url);
+                    navigator.clipboard.writeText(absoluteUrl).then(() => {
+                        setAlertModal({ isOpen: true, title: 'Link Copied', message: 'Download link copied to clipboard!' });
+                    });
+                }
+                break;
+
+            // Background Actions
+            case 'new-folder':
+                setIsCreateOpen(true);
+                break;
+            case 'new-file':
+                handleCreateNewFile('new_file.dat');
+                break;
+            case 'new-txt':
+                handleCreateNewFile('note.txt');
+                break;
+            case 'refresh':
+                refresh();
+                break;
+            case 'properties':
+                handleShowProperties();
+                break;
+            case 'compress-current':
+                setCompressModal({ isOpen: true, items: items.filter(i => !isFolder(i)) as APIFile[] });
                 break;
         }
+    };
+
+    const handleCreateNewFile = async (defaultName: string) => {
+        const name = prompt("Enter filename:", defaultName);
+        if (!name) return;
+        try {
+            setUploadProgress({ name, percent: 0 });
+            // Create a small placeholder file
+            const blob = new Blob([" "], { type: 'text/plain' });
+            const file = new File([blob], name);
+            await uploadFile(currentPath, file, (p) => setUploadProgress({ name, percent: p }));
+            refresh();
+        } catch (e: any) {
+            setAlertModal({ isOpen: true, title: 'Error', message: 'Failed to create file: ' + e.message });
+        } finally {
+            setUploadProgress(null);
+        }
+    };
+
+    const handleShowProperties = () => {
+        const folderCount = items.filter(isFolder).length;
+        const fileCount = items.length - folderCount;
+        const totalSize = items.reduce((acc, item) => acc + (isFolder(item) ? 0 : (item as APIFile).size), 0);
+
+        setAlertModal({
+            isOpen: true,
+            title: 'Folder Properties',
+            message: `Current Folder: ${breadcrumbs[breadcrumbs.length - 1].name}\n\nFolders: ${folderCount}\nFiles: ${fileCount}\nTotal Size: ${formatSize(totalSize)}`
+        });
     };
 
     // --- Box Selection Logic ---
@@ -504,20 +568,29 @@ export default function MainView() {
         setSelectedIds(newSelected);
     };
 
-    const handleMouseUp = () => {
+    const handleMouseUp = (e: React.MouseEvent) => {
         if (isBoxSelecting) {
             setIsBoxSelecting(false);
-            setSelectionStart(null);
-            setSelectionCurrent(null);
+
+            // Calculate if this was a real selection or just a click
+            const start = selectionRef.current.start;
+            const end = { x: e.clientX, y: e.clientY };
+            const dist = start ? Math.sqrt(Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2)) : 0;
+
             setSelectionStart(null);
             setSelectionCurrent(null);
             selectionRef.current.start = null;
-            // Mark that we just finished a selection to block the subsequent click event
-            selectionRef.current.justFinishedSelection = true;
-            // Clear the flag after a short delay to allow normal clicks later
-            setTimeout(() => {
-                if (selectionRef.current) selectionRef.current.justFinishedSelection = false;
-            }, 100);
+
+            // Only mark as "just finished selection" if we actually moved the mouse significant distance
+            // This prevents a simple click from being eaten by the box selection flag
+            if (dist > 5) {
+                selectionRef.current.justFinishedSelection = true;
+                setTimeout(() => {
+                    if (selectionRef.current) selectionRef.current.justFinishedSelection = false;
+                }, 100);
+            } else {
+                selectionRef.current.justFinishedSelection = false;
+            }
         }
     };
 
@@ -557,7 +630,7 @@ export default function MainView() {
 
     return (
         <div
-            className="flex-1 flex flex-col bg-zinc-900/50 backdrop-blur-xl relative"
+            className="flex-1 flex flex-col bg-transparent relative"
             onDragEnter={handleGlobalDragEnter}
             onDragLeave={handleGlobalDragLeave}
             onDragOver={handleGlobalDragOver}
@@ -579,7 +652,7 @@ export default function MainView() {
             }}
         >
             {/* Toolbar */}
-            <div className="h-16 flex items-center px-4 md:px-6 space-x-2 md:space-x-4 border-b border-white/5 bg-transparent sticky top-0 z-30">
+            <div className="h-16 flex items-center px-4 md:px-6 space-x-2 md:space-x-4 bg-transparent shadow-[0_2px_15px_rgba(255,255,255,0.05)] sticky top-0 z-30">
                 <div className="flex-1 overflow-hidden flex items-center">
                     <button
                         onClick={(e) => { e.stopPropagation(); goUp(); }}
@@ -651,8 +724,17 @@ export default function MainView() {
                     </>
                 )}
 
-                <button onClick={(e) => { e.stopPropagation(); refresh(); }} className="p-2 hover:bg-white/10 rounded-full text-zinc-400 transition-colors">
-                    <RefreshCw size={18} />
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setIsRefreshing(true);
+                        refresh();
+                        setTimeout(() => setIsRefreshing(false), 600);
+                    }}
+                    className="p-2 hover:bg-white/10 rounded-full text-zinc-400 hover:text-white transition-all group"
+                    title="Refresh"
+                >
+                    <RefreshCw size={18} className={`transition-transform group-hover:rotate-45 ${isRefreshing ? 'animate-spin' : ''}`} />
                 </button>
 
                 <div className="h-6 w-px bg-white/10 mx-2 hidden md:block" />
@@ -680,7 +762,10 @@ export default function MainView() {
             )}
 
             {/* File List */}
-            <div className="flex-1 overflow-auto p-4 md:p-6 scroll-smooth">
+            <div
+                className="flex-1 overflow-auto p-4 md:p-6 scroll-smooth"
+                onContextMenu={onBackgroundContextMenu}
+            >
                 {isLoading && <FileSkeleton viewMode={viewMode} />}
 
                 {error && (
@@ -773,9 +858,9 @@ export default function MainView() {
                                                 }}
                                                 className={`group grid grid-cols-[auto_auto_1fr_auto_auto] md:grid-cols-[auto_auto_1fr_auto_auto_auto] gap-4 items-center px-4 py-3 rounded-xl cursor-pointer select-none transition-all duration-200 
                                                     ${isSel
-                                                        ? "bg-blue-600/20 shadow-lg shadow-blue-900/10 ring-1 ring-blue-500/30"
+                                                        ? "bg-blue-600/5 shadow-[0_0_15px_rgba(59,130,246,0.15)]"
                                                         : isFocused
-                                                            ? "bg-white/10 ring-1 ring-white/10"
+                                                            ? "bg-white/5 shadow-[0_0_10px_rgba(255,255,255,0.05)]"
                                                             : dragOverId === item.id
                                                                 ? "bg-blue-500/20 scale-[1.01] ring-1 ring-blue-400/50"
                                                                 : "hover:bg-white/5"
@@ -871,9 +956,9 @@ export default function MainView() {
                                             onDrop={(e) => { if (isDir) handleDrop(e, item.id); }}
                                             className={`group flex flex-col items-center p-4 rounded-2xl cursor-pointer select-none transition-all duration-200 relative
                                                 ${isSel
-                                                    ? "bg-blue-600/20 shadow-lg shadow-blue-900/10 ring-1 ring-blue-500/30"
+                                                    ? "bg-blue-600/5 shadow-[0_0_20px_rgba(59,130,246,0.15)]"
                                                     : isFocused
-                                                        ? "bg-white/10 ring-1 ring-white/10"
+                                                        ? "bg-white/5 shadow-[0_0_15px_rgba(255,255,255,0.05)]"
                                                         : dragOverId === item.id
                                                             ? "bg-blue-500/20 scale-[1.05] ring-2 ring-blue-400/50"
                                                             : "hover:bg-white/5"
@@ -930,6 +1015,7 @@ export default function MainView() {
                     x={contextMenu.x}
                     y={contextMenu.y}
                     item={contextMenu.item}
+                    type={contextMenu.type}
                     onClose={() => setContextMenu(null)}
                     onAction={handleContextAction}
                 />
@@ -1007,7 +1093,7 @@ export default function MainView() {
             )}
 
             {/* Branding Footer */}
-            <div className="glass-panel border-x-0 border-b-0 py-2 text-center text-[10px] text-zinc-600 font-medium select-none z-20">
+            <div className="bg-transparent py-2 text-center text-[10px] text-zinc-600 font-medium select-none z-20 shadow-[0_-2px_15px_rgba(255,255,255,0.05)]">
                 Made with <span className="inline-block animate-pulse text-red-500 mx-1" style={{ animation: 'beat 1.5s infinite' }}>❤️</span>
                 <a href="https://ashmit-kumar.vercel.app" target="_blank" rel="noopener noreferrer" className="font-bold text-zinc-400 hover:text-white transition-colors tracking-wide">Riveror</a>
                 <style jsx>{`

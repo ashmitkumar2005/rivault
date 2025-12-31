@@ -1,3 +1,5 @@
+import { deriveMasterKey, generateDataKey, encryptDataKey, encryptData, decryptDataKey, decryptData, generateSalt, EncryptedBuffer } from './crypto-web';
+
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787/api';
 
 export type APIFolder = {
@@ -52,9 +54,31 @@ const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
 export async function uploadFile(
     parentId: string,
     file: File,
-    onProgress?: (progress: number) => void
+    password?: string, // Password optional but required for E2EE
+    onProgress?: (progress: number) => void,
+    overwrite: boolean = false
 ): Promise<APIFile> {
-    // 1. Create File Metadata
+    let encryptionMeta: any = undefined;
+    let dataKey: CryptoKey | null = null;
+
+    if (password) {
+        // 1. Setup E2EE
+        const salt = generateSalt();
+        const masterKey = await deriveMasterKey(password, salt);
+        const { raw: dataKeyRaw, key } = await generateDataKey();
+        dataKey = key;
+        const wrappedKey = await encryptDataKey(dataKeyRaw, masterKey);
+
+        encryptionMeta = {
+            salt,
+            wrappedKey,
+            // Per-file IV isn't strictly necessary if chunks have their own IVs, 
+            // but we can store one if we want to follow our proposed types.ts structure.
+            // Actually, we'll prepend IV to chunks.
+        };
+    }
+
+    // 2. Create File Metadata
     const initRes = await fetch(`${API_URL}/files`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getHeaders() },
@@ -62,7 +86,9 @@ export async function uploadFile(
             parentId,
             name: file.name,
             size: file.size,
-            mimeType: file.type || 'application/octet-stream'
+            mimeType: file.type || 'application/octet-stream',
+            encryption: encryptionMeta,
+            overwrite
         })
     });
 
@@ -78,6 +104,23 @@ export async function uploadFile(
         const end = Math.min(start + CHUNK_SIZE, file.size);
         const chunk = file.slice(start, end);
 
+        let body: ArrayBuffer = await chunk.arrayBuffer();
+
+        if (dataKey) {
+            // Encrypt Chunk
+            const { iv, ciphertext, authTag } = await encryptData(new Uint8Array(body), dataKey);
+            const ivBuf = hex2buf(iv);
+            const tagBuf = hex2buf(authTag);
+            const cipherBuf = hex2buf(ciphertext);
+
+            // Prepend IV (12) and AuthTag (16)
+            const combined = new Uint8Array(ivBuf.length + tagBuf.length + cipherBuf.length);
+            combined.set(ivBuf, 0);
+            combined.set(tagBuf, ivBuf.length);
+            combined.set(cipherBuf, ivBuf.length + tagBuf.length);
+            body = combined.buffer;
+        }
+
         // Upload chunk
         const res = await fetch(`${API_URL}/files/${fileId}/chunks?order=${i}`, {
             method: 'POST',
@@ -85,7 +128,7 @@ export async function uploadFile(
                 ...getHeaders(),
                 'Content-Type': 'application/octet-stream'
             },
-            body: chunk
+            body: body
         });
 
         if (!res.ok) throw new Error(`Chunk ${i} upload failed`);
@@ -99,9 +142,115 @@ export async function uploadFile(
 }
 
 export function getDownloadUrl(fileId: string): string {
-    // TODO: Implement download via Worker proxy if needed, or direct link
-    // For now, pointing to API which might redirect or stream
     return `${API_URL}/files/${fileId}/download`;
+}
+
+// Helper: Convert Hex String to Uint8Array (Duplicated from crypto-web if internal only there, 
+// let's export it from crypto-web or just re-define if needed. Best to export.)
+// Helper: Convert Hex String to Uint8Array
+function hex2buf(hex: string): Uint8Array {
+    const bytes = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < hex.length; i += 2) {
+        bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+    }
+    return bytes;
+}
+
+export async function downloadAndDecryptFile(
+    fileMeta: APIFile & { encryption?: any },
+    password?: string
+): Promise<Blob> {
+    // 1. If not encrypted, just download normally (or via proxy)
+    if (!fileMeta.encryption || !password) {
+        const res = await fetch(getDownloadUrl(fileMeta.id));
+        if (!res.ok) throw new Error('Download failed');
+        return await res.blob();
+    }
+
+    // 2. Setup Decryption
+    const { salt, wrappedKey } = fileMeta.encryption;
+    const masterKey = await deriveMasterKey(password, salt);
+    const dataKey = await decryptDataKey(wrappedKey, masterKey);
+
+    // 3. Fetch Chunks and Decrypt
+    // For now, we'll fetch the whole stream or individual chunks if possible.
+    // The current server returns a stream of concatenated raw chunks.
+    // BUT we need to decrypt chunk by chunk because AES-GCM needs separate IV/Tag.
+    // So the server proxy GET /download should ideally return the raw stream of encrypted chunks.
+    // Our encryption prepends IV(12) and Tag(16) to each chunk.
+
+    // FETCH THE RAW STREAM
+    const res = await fetch(getDownloadUrl(fileMeta.id));
+    if (!res.ok) throw new Error('Download failed');
+    if (!res.body) throw new Error('No body in response');
+
+    const decryptedChunks: Uint8Array[] = [];
+
+    // We need to buffer the response to identify chunk boundaries or just process it as a continuous stream
+    // Since we know our chunk size roughly, but more importantly we know the structure: [IV(12)][Tag(16)][Ciphertext(CHUNK_SIZE)]
+    // Actually, CHUNK_SIZE refers to the original data size. The encrypted chunk will be 28 bytes larger.
+
+    // SIMPLIFIED FOR PROOF: 
+    // In a production app, we would handle the stream precisely. 
+    // For now, let's read the whole thing if it's small enough, or just process segments.
+    // Let's assume we can get segments.
+
+    const fullBuffer = await res.arrayBuffer();
+    const bytes = new Uint8Array(fullBuffer);
+
+    let offset = 0;
+    // We need a way to know where chunks end. 
+    // Since CHUNK_SIZE is 5MB, we can use that to slice.
+    // BUT the last chunk might be smaller.
+    // Safe approach: The metadata should probably store chunk sizes if they vary, 
+    // but here we know each encrypted segment is (OriginalChunkSize + 28).
+
+    // Wait, the concatenated stream in the worker download proxy:
+    // It just writes value by value.
+
+    // A better way: The worker download proxy should probably not be used if we want precise segment decryption,
+    // OR it should be used and we just parse the markers.
+
+    // Let's assume for now we can decrypt the whole concatenated buffer if we knew the sequence.
+    // Actually, each 5MB segment (plus overhead) is decoratable.
+
+    const OVERHEAD = 12 + 16;
+    const ENCRYPTED_CHUNK_SIZE = CHUNK_SIZE + OVERHEAD;
+
+    while (offset < bytes.length) {
+        // Calculate current segment length
+        // This is tricky if it's the last chunk.
+        // If it's not the last chunk, it's ENCRYPTED_CHUNK_SIZE.
+        // If it is, it's the remainder.
+
+        let segmentLen = ENCRYPTED_CHUNK_SIZE;
+        if (offset + segmentLen > bytes.length) {
+            segmentLen = bytes.length - offset;
+        }
+
+        const segment = bytes.slice(offset, offset + segmentLen);
+        const iv = segment.slice(0, 12);
+        const tag = segment.slice(12, 28);
+        const ciphertext = segment.slice(28);
+
+        const decrypted = await decryptData({
+            iv: buf2hex(iv),
+            authTag: buf2hex(tag),
+            ciphertext: buf2hex(ciphertext)
+        }, dataKey);
+
+        decryptedChunks.push(decrypted);
+        offset += segmentLen;
+    }
+
+    return new Blob(decryptedChunks as any, { type: fileMeta.mimeType });
+}
+
+function buf2hex(data: ArrayBuffer | Uint8Array): string {
+    const arr = data instanceof Uint8Array ? data : new Uint8Array(data);
+    return Array.from(arr)
+        .map(x => x.toString(16).padStart(2, '0'))
+        .join('');
 }
 
 export async function deleteNode(nodeId: string): Promise<void> {

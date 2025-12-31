@@ -59,7 +59,7 @@ export class FileSystemDO {
 
             if (method === 'POST' && path === '/api/files') {
                 // Create File
-                const body = await request.json() as { parentId: string, name: string, size: number, mimeType: string, encryption?: any };
+                const body = await request.json() as { parentId: string, name: string, size: number, mimeType: string, encryption?: any, overwrite?: boolean };
                 let { parentId } = body;
                 if (parentId === 'root') parentId = this.rootId!;
                 const file = await this.createFile(parentId, body);
@@ -261,13 +261,42 @@ export class FileSystemDO {
         return newFolder;
     }
 
-    async createFile(parentId: string, meta: { name: string, size: number, mimeType: string, encryption?: any }): Promise<File> {
+    async createFile(parentId: string, meta: { name: string, size: number, mimeType: string, encryption?: any, overwrite?: boolean }): Promise<File> {
         const parent = await this.getNode(parentId);
         if (!parent || 'chunks' in parent) throw new ClientError(`Invalid parent folder`, 400);
 
         const siblings = await this.listFolder(parentId);
-        if (siblings.some(s => s.name === meta.name)) {
-            throw new ClientError(`Name "${meta.name}" already exists`, 409);
+        const existing = siblings.find(s => s.name === meta.name);
+
+        if (existing) {
+            if (!meta.overwrite) {
+                throw new ClientError(`Name "${meta.name}" already exists`, 409);
+            }
+            if (!('chunks' in existing)) {
+                throw new ClientError(`Cannot overwrite folder "${meta.name}" with a file`, 400);
+            }
+
+            // Overwrite existing file
+            // We keep the ID but update metadata and clear chunks
+            const updatedFile: File = {
+                ...(existing as File),
+                size: meta.size,
+                mimeType: meta.mimeType,
+                updatedAt: Date.now(),
+                encryption: meta.encryption,
+                chunks: [] // Reset chunks for new upload
+            };
+
+            await this.state.blockConcurrencyWhile(async () => {
+                await this.saveNode(updatedFile);
+                // Update stats: subtract old size, add new size
+                // actually we only have totalUsed.
+                // We need to know old size. existing.size.
+                const sizeDiff = meta.size - (existing as File).size;
+                await this.updateStats({ totalUsed: sizeDiff });
+            });
+
+            return updatedFile;
         }
 
         const id = this.generateId();
@@ -276,7 +305,7 @@ export class FileSystemDO {
             parentId,
             name: meta.name,
             size: meta.size,
-            chunkSize: 20 * 1024 * 1024,
+            chunkSize: 5 * 1024 * 1024,
             mimeType: meta.mimeType,
             chunks: [],
             createdAt: Date.now(),

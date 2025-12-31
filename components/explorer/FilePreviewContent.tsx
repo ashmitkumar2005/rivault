@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { APIFile, getDownloadUrl } from '@/lib/api';
-import { FileText, Music, Play, AlertCircle, Loader2, Archive, File as FileIcon } from 'lucide-react';
+import { APIFile, getDownloadUrl, downloadAndDecryptFile } from '@/lib/api';
+import { useAuth } from '@/components/providers/AuthProvider';
+import { FileText, Music, Play, AlertCircle, Loader2, Archive, File as FileIcon, Download } from 'lucide-react';
 import { listZipContents } from '@/lib/archive';
 
 interface FilePreviewContentProps {
@@ -10,55 +11,67 @@ interface FilePreviewContentProps {
 }
 
 export default function FilePreviewContent({ item }: FilePreviewContentProps) {
+    const { masterPassword } = useAuth();
     const [content, setContent] = useState<string | null>(null);
+    const [blobUrl, setBlobUrl] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [zipItems, setZipItems] = useState<string[]>([]);
-    const url = getDownloadUrl(item.id);
     const ext = item.name.split('.').pop()?.toLowerCase() || '';
 
     useEffect(() => {
-        // Only fetch content for text-based files
-        const textExts = ['txt', 'md', 'js', 'ts', 'jsx', 'tsx', 'py', 'json', 'css', 'html', 'yaml', 'yml', 'xml', 'rs', 'go', 'cpp', 'c', 'sh'];
-        if (textExts.includes(ext)) {
-            setLoading(true);
-            fetch(url)
-                .then(res => {
-                    if (!res.ok) throw new Error('Failed to load file content');
-                    return res.text();
-                })
-                .then(text => {
-                    setContent(text);
-                    setLoading(false);
-                })
-                .catch(err => {
-                    setError(err.message);
-                    setLoading(false);
-                });
-        }
+        let isStopped = false;
 
-        if (ext === 'zip') {
+        const loadContent = async () => {
             setLoading(true);
-            fetch(url)
-                .then(res => res.blob())
-                .then(blob => listZipContents(blob))
-                .then(items => {
-                    setZipItems(items);
-                    setLoading(false);
-                })
-                .catch(err => {
-                    setError(err.message);
-                    setLoading(false);
-                });
-        }
-    }, [url, ext]);
+            setError(null);
+            try {
+                const decryptedBlob = await downloadAndDecryptFile(item, masterPassword || undefined);
+                if (isStopped) return;
+
+                const url = window.URL.createObjectURL(decryptedBlob);
+                setBlobUrl(url);
+
+                const textExts = ['txt', 'md', 'js', 'ts', 'jsx', 'tsx', 'py', 'json', 'css', 'html', 'yaml', 'yml', 'xml', 'rs', 'go', 'cpp', 'c', 'sh'];
+                if (textExts.includes(ext)) {
+                    const text = await decryptedBlob.text();
+                    if (!isStopped) setContent(text);
+                }
+
+                if (ext === 'zip') {
+                    const items = await listZipContents(decryptedBlob);
+                    if (!isStopped) setZipItems(items);
+                }
+            } catch (err: any) {
+                if (!isStopped) setError(err.message);
+            } finally {
+                if (!isStopped) setLoading(false);
+            }
+        };
+
+        loadContent();
+
+        return () => {
+            isStopped = true;
+            if (blobUrl) {
+                window.URL.revokeObjectURL(blobUrl);
+            }
+        };
+    }, [item.id, masterPassword]);
+
+    // Handle blobUrl cleanup specifically when it changes
+    useEffect(() => {
+        return () => {
+            if (blobUrl) window.URL.revokeObjectURL(blobUrl);
+        };
+    }, [blobUrl]);
 
     // 1. Image Preview
     if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) {
         return (
             <div className="relative group animate-fade-in max-w-full max-h-full flex items-center justify-center">
                 <img
-                    src={url}
+                    src={blobUrl || ""}
                     alt={item.name}
                     className="max-w-full max-h-full object-contain rounded-lg shadow-2xl transition-transform duration-500 hover:scale-[1.02]"
                     onLoad={(e) => (e.currentTarget.parentElement?.classList.remove('animate-pulse'))}
@@ -72,7 +85,7 @@ export default function FilePreviewContent({ item }: FilePreviewContentProps) {
         return (
             <div className="w-full max-w-4xl aspect-video bg-black/40 rounded-3xl overflow-hidden border border-white/10 shadow-2xl relative group">
                 <video
-                    src={url}
+                    src={blobUrl || ""}
                     controls
                     className="w-full h-full object-contain"
                     autoPlay
@@ -93,7 +106,7 @@ export default function FilePreviewContent({ item }: FilePreviewContentProps) {
                     <h4 className="text-xl font-bold text-white mb-2">{item.name}</h4>
                     <p className="text-sm text-zinc-400">Audio Preview</p>
                 </div>
-                <audio src={url} controls className="w-full" autoPlay />
+                <audio src={blobUrl || ""} controls className="w-full" autoPlay />
             </div>
         );
     }
@@ -168,15 +181,18 @@ export default function FilePreviewContent({ item }: FilePreviewContentProps) {
             </div>
             <div className="text-center">
                 <h4 className="text-lg font-medium text-zinc-300">No Preview Available</h4>
-                <p className="text-sm text-zinc-500 mt-1 max-w-[250px]">We can't preview this file type directly yet.</p>
+                <p className="text-sm text-zinc-500 mt-1 max-w-[250px]">Preview for this file type is not supported yet, or decryption failed.</p>
             </div>
-            <button
-                onClick={() => window.open(url, '_blank')}
-                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-900/20 transition-all flex items-center space-x-2"
-            >
-                <Play size={16} />
-                <span>Open Raw</span>
-            </button>
+            {blobUrl && (
+                <a
+                    href={blobUrl}
+                    download={item.name}
+                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-900/20 transition-all flex items-center space-x-2"
+                >
+                    <Download size={16} />
+                    <span>Download Decrypted</span>
+                </a>
+            )}
         </div>
     );
 }

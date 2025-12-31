@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useFileSystem } from "@/components/providers/FileSystemProvider";
-import { APIFile, APIFolder, APINode, isFolder, uploadFile, createFolder, getDownloadUrl, moveNode } from "@/lib/api";
+import { useAuth } from "@/components/providers/AuthProvider";
+import { APIFile, APIFolder, APINode, isFolder, uploadFile, createFolder, getDownloadUrl, moveNode, downloadAndDecryptFile } from "@/lib/api";
 import {
     ArrowUp, ArrowDown, FolderPlus, UploadCloud, MoreHorizontal, RefreshCw,
     Trash2, Edit2, FileText, Folder as FolderIcon, Music, Image as ImageIcon, Video, File as LucideFile, Search, ArrowLeft,
@@ -18,6 +19,7 @@ import PreviewModal from "./PreviewModal";
 import FilePreviewContent from "./FilePreviewContent";
 import FileSkeleton from "./FileSkeleton";
 import CompressModal from './CompressModal';
+import { TextEditorModal } from './TextEditorModal';
 import SelectionBox from './SelectionBox';
 import { createZip, extractZip } from "@/lib/archive";
 
@@ -49,6 +51,7 @@ export default function MainView() {
         handleDelete, handleRename, handleMove, fileTypeFilter,
         viewMode, toggleViewMode
     } = useFileSystem();
+    const { masterPassword } = useAuth();
 
     const [uploadProgress, setUploadProgress] = useState<{ name: string, percent: number } | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -63,11 +66,14 @@ export default function MainView() {
 
     // Modal States
     const [isCreateOpen, setIsCreateOpen] = useState(false);
+    const [isCreateFileOpen, setIsCreateFileOpen] = useState(false);
+    const [createFileType, setCreateFileType] = useState<'any' | 'txt'>('any');
     const [renameModal, setRenameModal] = useState<{ isOpen: boolean, id: string, name: string }>({ isOpen: false, id: '', name: '' });
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean, count: number }>({ isOpen: false, count: 0 });
     const [alertModal, setAlertModal] = useState<{ isOpen: boolean, title: string, message: string }>({ isOpen: false, title: '', message: '' });
     const [previewItem, setPreviewItem] = useState<APIFile | null>(null);
     const [compressModal, setCompressModal] = useState<{ isOpen: boolean, items: APIFile[] }>({ isOpen: false, items: [] });
+    const [textEditor, setTextEditor] = useState<{ isOpen: boolean, file: APIFile | null, content: string }>({ isOpen: false, file: null, content: '' });
 
     // Box Selection State
     const [isBoxSelecting, setIsBoxSelecting] = useState(false);
@@ -82,6 +88,30 @@ export default function MainView() {
         setFocusedId(null);
         setIsSelectMode(false);
     }, [currentPath]);
+
+    // Keyboard Shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Delete') {
+                if (selectedIds.size > 0 || focusedId) {
+                    // Use focusedId if selection is empty but something is focused?
+                    // Standard logic: If specific selection handling exists, use it.
+                    // Here `initiateDelete` uses `selectedIds`.
+                    // Ideally, if nothing selected but one item focused, we should select it then delete?
+                    // For now, let's stick to explicitly selected items or focused item if selection is empty.
+                    if (selectedIds.size === 0 && focusedId) {
+                        setSelectedIds(new Set([focusedId]));
+                        setDeleteModal({ isOpen: true, count: 1 });
+                    } else if (selectedIds.size > 0) {
+                        initiateDelete();
+                    }
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedIds, focusedId]);
 
     // Filter and sort items
     const filteredItems = useMemo(() => {
@@ -155,7 +185,7 @@ export default function MainView() {
             for (const file of files) {
                 try {
                     setUploadProgress({ name: file.name, percent: 0 });
-                    await uploadFile(currentPath, file, (p) => setUploadProgress({ name: file.name, percent: p }));
+                    await uploadFile(currentPath, file, masterPassword || undefined, (p) => setUploadProgress({ name: file.name, percent: p }));
                 } catch (err: any) {
                     console.error(err);
                     setAlertModal({ isOpen: true, title: 'Upload Failed', message: `Failed to upload ${file.name}: ${err.message} ` });
@@ -166,9 +196,43 @@ export default function MainView() {
         }
     };
 
+    const handleSecureDownload = async (item: APIFile) => {
+        try {
+            const blob = await downloadAndDecryptFile(item, masterPassword || undefined);
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = item.name;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (err: any) {
+            console.error(err);
+            setAlertModal({ isOpen: true, title: 'Download Failed', message: err.message });
+        }
+    };
+
     const handleCreateSubmit = async (name: string) => {
         try {
             await createFolder(currentPath, name);
+            refresh();
+        } catch (e: any) {
+            setAlertModal({ isOpen: true, title: 'Error', message: e.message });
+        }
+    };
+
+    const handleCreateFileSubmit = async (name: string) => {
+        try {
+            let finalName = name;
+            // Auto-append .txt if in txt mode and extension is missing
+            if (createFileType === 'txt' && !finalName.toLowerCase().endsWith('.txt')) {
+                finalName = `${finalName}.txt`;
+            }
+
+            // Create an empty file with the given name
+            const emptyFile = new File([], finalName, { type: 'application/octet-stream' });
+            await uploadFile(currentPath, emptyFile, masterPassword || undefined);
             refresh();
         } catch (e: any) {
             setAlertModal({ isOpen: true, title: 'Error', message: e.message });
@@ -209,13 +273,53 @@ export default function MainView() {
         }
     };
 
-    const onDoubleClick = (item: APIFile | APIFolder) => {
+    const onDoubleClick = async (item: APIFile | APIFolder) => {
         if (isSelectMode) return;
 
         if (isFolder(item)) {
             navigateTo(item.id, item.name);
         } else {
-            setPreviewItem(item as APIFile);
+            // Check if text file to open editor
+            const ext = item.name.split('.').pop()?.toLowerCase() || '';
+            const textExts = ['txt', 'md', 'json', 'js', 'ts', 'tsx', 'jsx', 'html', 'css', 'py', 'java', 'c', 'cpp', 'sql', 'xml', 'yaml', 'yml', 'sh', 'bat', 'env', 'gitignore'];
+
+            if (textExts.includes(ext)) {
+                try {
+                    // Show some loading indicator? AlertModal with "Loading..." isn't ideal but works for now or reuse existing loading states
+                    // We don't have a generic loading modal, so let's use Alert temporarily or just wait
+                    // Setting previewItem logic had no loader, it just opened. 
+                    // But decryption takes time.
+
+                    // Let's assume fast decryption for small text files. 
+                    const blob = await downloadAndDecryptFile(item as APIFile, masterPassword || undefined);
+                    const text = await blob.text();
+                    setTextEditor({ isOpen: true, file: item as APIFile, content: text });
+                } catch (e: any) {
+                    setAlertModal({ isOpen: true, title: 'Error', message: 'Failed to open file: ' + e.message });
+                }
+            } else {
+                setPreviewItem(item as APIFile);
+            }
+        }
+    };
+
+    const handleEditorSave = async (content: string) => {
+        if (!textEditor.file) return;
+        try {
+            // Create file object from content
+            const file = new File([content], textEditor.file.name, { type: textEditor.file.mimeType || 'text/plain' });
+
+            // Upload with overwrite=true
+            // note: uploadFile signature in MainView usage needs update or it just passes args
+            // The uploadFile imported from @/lib/api has been updated to accept overwrite as 5th arg.
+            // But existing usages in MainView might be using only 4 args (onProgress).
+            // We need to pass 5th arg.
+
+            await uploadFile(currentPath, file, masterPassword || undefined, undefined, true);
+            refresh();
+        } catch (e: any) {
+            console.error(e);
+            throw new Error(e.message);
         }
     };
 
@@ -317,7 +421,7 @@ export default function MainView() {
             for (const file of files) {
                 try {
                     setUploadProgress({ name: file.name, percent: 0 });
-                    await uploadFile(currentPath, file, (progress) => {
+                    await uploadFile(currentPath, file, masterPassword || undefined, (progress) => {
                         setUploadProgress({ name: file.name, percent: progress });
                     });
                     completed++;
@@ -350,7 +454,7 @@ export default function MainView() {
                 if (name.endsWith('/')) continue;
 
                 const file = new File([data as any], name);
-                await uploadFile(currentPath, file, (p) => {
+                await uploadFile(currentPath, file, masterPassword || undefined, (p) => {
                     setAlertModal({
                         isOpen: true,
                         title: 'Extracting...',
@@ -392,8 +496,8 @@ export default function MainView() {
 
             const filesForZip = [];
             for (const item of itemsToZip) {
-                const res = await fetch(getDownloadUrl(item.id));
-                const buffer = await res.arrayBuffer();
+                const blob = await downloadAndDecryptFile(item, masterPassword || undefined);
+                const buffer = await blob.arrayBuffer();
                 filesForZip.push({ name: item.name, data: new Uint8Array(buffer) });
             }
 
@@ -403,7 +507,7 @@ export default function MainView() {
             const finalName = name.endsWith('.zip') ? name : `${name}.zip`;
             const zipFile = new File([zipBlob], finalName, { type: 'application/zip' });
 
-            await uploadFile(currentPath, zipFile, (p) => {
+            await uploadFile(currentPath, zipFile, masterPassword || undefined, (p) => {
                 setAlertModal({ isOpen: true, title: 'Uploading Archive...', message: `${Math.round(p)}%` });
             });
 
@@ -421,6 +525,14 @@ export default function MainView() {
         setContextMenu(null);
 
         switch (action) {
+            case 'new-file':
+                setCreateFileType('any');
+                setIsCreateFileOpen(true);
+                break;
+            case 'new-txt':
+                setCreateFileType('txt');
+                setIsCreateFileOpen(true);
+                break;
             case 'open':
                 if (item) onDoubleClick(item);
                 break;
@@ -428,7 +540,7 @@ export default function MainView() {
                 if (item && !isFolder(item)) setPreviewItem(item as APIFile);
                 break;
             case 'download':
-                if (item) window.open(getDownloadUrl(item.id), "_blank");
+                if (item) handleSecureDownload(item as APIFile);
                 break;
             case 'extract':
                 if (item && !isFolder(item)) handleExtract(item as APIFile);
@@ -492,7 +604,7 @@ export default function MainView() {
             // Create a small placeholder file
             const blob = new Blob([" "], { type: 'text/plain' });
             const file = new File([blob], name);
-            await uploadFile(currentPath, file, (p) => setUploadProgress({ name, percent: p }));
+            await uploadFile(currentPath, file, masterPassword || undefined, (p) => setUploadProgress({ name, percent: p }));
             refresh();
         } catch (e: any) {
             setAlertModal({ isOpen: true, title: 'Error', message: 'Failed to create file: ' + e.message });
@@ -667,6 +779,18 @@ export default function MainView() {
                     >
                         <ArrowLeft size={18} />
                     </button>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setIsRefreshing(true);
+                            refresh();
+                            setTimeout(() => setIsRefreshing(false), 600);
+                        }}
+                        className="p-2 mr-2 hover:bg-white/10 rounded-full text-zinc-400 hover:text-white transition-all group"
+                        title="Refresh"
+                    >
+                        <RefreshCw size={18} className={`transition-transform group-hover:rotate-45 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    </button>
                     <Breadcrumb items={breadcrumbs} onNavigate={navigateToBreadcrumb} />
                 </div>
 
@@ -711,13 +835,6 @@ export default function MainView() {
                     </div>
                 ) : (
                     <>
-                        <button onClick={(e) => { e.stopPropagation(); setIsCreateOpen(true); }} className="hidden md:flex glass-button px-4 py-2 rounded-xl text-zinc-200 hover:text-white text-sm font-medium items-center space-x-2">
-                            <FolderPlus size={18} className="text-blue-400" />
-                            <span>New Folder</span>
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); setIsCreateOpen(true); }} className="md:hidden p-2 rounded-xl text-zinc-200 hover:text-white">
-                            <FolderPlus size={20} className="text-blue-400" />
-                        </button>
                         <label className="glass-button px-4 py-2 rounded-xl text-zinc-200 hover:text-white text-sm font-medium flex items-center space-x-2 cursor-pointer shadow-lg shadow-purple-900/10" onClick={e => e.stopPropagation()}>
                             <UploadCloud size={18} className="text-purple-400" />
                             <span className="hidden md:inline">Upload</span>
@@ -726,18 +843,6 @@ export default function MainView() {
                     </>
                 )}
 
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        setIsRefreshing(true);
-                        refresh();
-                        setTimeout(() => setIsRefreshing(false), 600);
-                    }}
-                    className="p-2 hover:bg-white/10 rounded-full text-zinc-400 hover:text-white transition-all group"
-                    title="Refresh"
-                >
-                    <RefreshCw size={18} className={`transition-transform group-hover:rotate-45 ${isRefreshing ? 'animate-spin' : ''}`} />
-                </button>
 
                 <div className="h-6 w-px bg-white/10 mx-2 hidden md:block" />
 
@@ -935,6 +1040,7 @@ export default function MainView() {
                                     return (
                                         <div
                                             key={item.id}
+                                            data-file-id={item.id}
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 if (isSelectMode || e.ctrlKey || e.metaKey) {
@@ -1027,14 +1133,22 @@ export default function MainView() {
 
             {/* Modals */}
 
-            {/* Create Folder */}
+            {/* Creation Modals */}
             <InputModal
                 isOpen={isCreateOpen}
                 onClose={() => setIsCreateOpen(false)}
                 onSubmit={handleCreateSubmit}
-                title="New Folder"
+                title="Create New Folder"
                 placeholder="Folder Name"
-                submitLabel="Create"
+                submitLabel="Create Folder"
+            />
+            <InputModal
+                isOpen={isCreateFileOpen}
+                onClose={() => setIsCreateFileOpen(false)}
+                onSubmit={handleCreateFileSubmit}
+                title={createFileType === 'txt' ? "New Text Document" : "Create New File"}
+                placeholder={createFileType === 'txt' ? "filename" : "filename.txt"}
+                submitLabel={createFileType === 'txt' ? "Create Text File" : "Create File"}
             />
 
             {/* Rename */}
@@ -1083,14 +1197,25 @@ export default function MainView() {
                 fileCount={compressModal.items.length}
             />
 
+            {/* Text Editor Modal */}
+            {textEditor.isOpen && textEditor.file && (
+                <TextEditorModal
+                    isOpen={textEditor.isOpen}
+                    onClose={() => setTextEditor({ isOpen: false, file: null, content: '' })}
+                    onSave={handleEditorSave}
+                    fileName={textEditor.file.name}
+                    initialContent={textEditor.content}
+                />
+            )}
+
             {/* Rich Media Previewer */}
             {previewItem && (
                 <PreviewModal
                     isOpen={!!previewItem}
                     onClose={() => setPreviewItem(null)}
                     title={previewItem.name}
-                    onDownload={() => window.open(getDownloadUrl(previewItem.id), "_blank")}
-                    onExternal={() => window.open(getDownloadUrl(previewItem.id), "_blank")}
+                    onDownload={() => handleSecureDownload(previewItem)}
+                    onExternal={() => handleSecureDownload(previewItem)}
                 >
                     <FilePreviewContent item={previewItem} />
                 </PreviewModal>

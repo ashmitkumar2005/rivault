@@ -178,13 +178,15 @@ export default function MainView() {
     // --- Interaction ---
 
     const toggleSelection = (id: string, multi: boolean) => {
-        const newSet = new Set(multi ? selectedIds : []);
-        if (newSet.has(id)) {
-            newSet.delete(id);
-        } else {
-            newSet.add(id);
-        }
-        setSelectedIds(newSet);
+        setSelectedIds(prev => {
+            const newSet = new Set(multi ? prev : []);
+            if (newSet.has(id)) {
+                newSet.delete(id);
+            } else {
+                newSet.add(id);
+            }
+            return newSet;
+        });
     };
 
     const toggleSort = (key: 'name' | 'size' | 'date') => {
@@ -514,7 +516,7 @@ export default function MainView() {
     // --- Box Selection Logic ---
     const handleMouseDown = (e: React.MouseEvent) => {
         // Ignore if clicking on buttons or interactive elements
-        if ((e.target as HTMLElement).closest('button, input, a, .context-trigger')) return;
+        if ((e.target as HTMLElement).closest('button, input, a, .context-trigger, [data-selection-checkbox], [data-file-id]')) return;
         // Ignore if valid context menu click (usually handled by onContextMenu)
         if (e.button !== 0) return;
 
@@ -856,18 +858,19 @@ export default function MainView() {
                                                 onDrop={(e) => {
                                                     if (isDir) handleDrop(e, item.id);
                                                 }}
-                                                className={`group grid grid-cols-[auto_auto_1fr_auto_auto] md:grid-cols-[auto_auto_1fr_auto_auto_auto] gap-4 items-center px-4 py-3 rounded-xl cursor-pointer select-none transition-all duration-200 
+                                                className={`group grid grid-cols-[auto_auto_1fr_auto_auto] md:grid-cols-[auto_auto_1fr_auto_auto_auto] gap-4 items-center px-4 py-3 rounded-xl cursor-pointer select-none transition-all duration-200 border
                                                     ${isSel
-                                                        ? "bg-blue-600/5 shadow-[0_0_15px_rgba(59,130,246,0.15)]"
+                                                        ? "bg-black shadow-[0_0_15px_rgba(59,130,246,0.15)] border-white/20"
                                                         : isFocused
-                                                            ? "bg-white/5 shadow-[0_0_10px_rgba(255,255,255,0.05)]"
+                                                            ? "bg-white/5 shadow-[0_0_10px_rgba(255,255,255,0.05)] border-white/10"
                                                             : dragOverId === item.id
-                                                                ? "bg-blue-500/20 scale-[1.01] ring-1 ring-blue-400/50"
-                                                                : "hover:bg-white/5"
+                                                                ? "bg-blue-500/20 scale-[1.01] ring-1 ring-blue-400/50 border-transparent"
+                                                                : "hover:bg-white/5 border-transparent"
                                                     }`}
                                             >
                                                 <div className="w-6 flex justify-center">
                                                     <div
+                                                        data-selection-checkbox // Fix: Prevent box selection clear
                                                         className={`w-4 h-4 rounded border flex items-center justify-center transition-all cursor-pointer z-10 
                                                             ${isSel
                                                                 ? "bg-blue-500 border-blue-500"
@@ -954,18 +957,19 @@ export default function MainView() {
                                             }}
                                             onDragLeave={() => setDragOverId(null)}
                                             onDrop={(e) => { if (isDir) handleDrop(e, item.id); }}
-                                            className={`group flex flex-col items-center p-4 rounded-2xl cursor-pointer select-none transition-all duration-200 relative
+                                            className={`group flex flex-col items-center p-4 rounded-2xl cursor-pointer select-none transition-all duration-200 relative border
                                                 ${isSel
-                                                    ? "bg-blue-600/5 shadow-[0_0_20px_rgba(59,130,246,0.15)]"
+                                                    ? "bg-black shadow-[0_0_20px_rgba(59,130,246,0.15)] border-white/20"
                                                     : isFocused
-                                                        ? "bg-white/5 shadow-[0_0_15px_rgba(255,255,255,0.05)]"
+                                                        ? "bg-white/5 shadow-[0_0_15px_rgba(255,255,255,0.05)] border-white/10"
                                                         : dragOverId === item.id
-                                                            ? "bg-blue-500/20 scale-[1.05] ring-2 ring-blue-400/50"
-                                                            : "hover:bg-white/5"
+                                                            ? "bg-blue-500/20 scale-[1.05] ring-2 ring-blue-400/50 border-transparent"
+                                                            : "hover:bg-white/5 border-transparent"
                                                 }`}
                                         >
                                             <div className="absolute top-3 left-3">
                                                 <div
+                                                    data-selection-checkbox // Fix: Prevent box selection clear
                                                     className={`w-4 h-4 rounded border flex items-center justify-center transition-all cursor-pointer z-10 
                                                         ${isSel
                                                             ? "bg-blue-500 border-blue-500"

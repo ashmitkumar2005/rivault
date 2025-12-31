@@ -41,7 +41,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
     const currentPath = breadcrumbs[breadcrumbs.length - 1].id;
 
     const [items, setItems] = useState<APINode[]>([]);
-    const [viewMode, setViewMode] = useState<ViewMode>("list"); // Default to list for "Explorer" feel
+    const [viewMode, setViewMode] = useState<ViewMode>("grid"); // Default to grid view
     const [fileTypeFilter, setFileTypeFilter] = useState<FileType>("all"); // NEW
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);

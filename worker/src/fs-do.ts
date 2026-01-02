@@ -66,6 +66,50 @@ export class FileSystemDO {
                 return Response.json(file);
             }
 
+            if (method === 'GET' && path.startsWith('/api/files/') && path.endsWith('/download')) {
+                // Download File Content
+                const id = path.split('/')[3];
+                const file = await this.getNode(id) as File;
+
+                if (!file) return new Response('File not found', { status: 404 });
+                if (!('chunks' in file)) return new Response('Not a file', { status: 400 });
+
+                // Retreive all chunks
+                // For a real production system, we'd use R2 or stream ranges.
+                // Here we fetch all chunks from DO storage and concatenate.
+                // NOTE: This assumes file fits in memory/limits.
+
+                const sortedChunks = file.chunks.sort((a, b) => a.order - b.order);
+                const combinedSize = sortedChunks.reduce((acc, c) => {
+                    // We don't verify size here, we just concat.
+                    // But we need the data size. 
+                    // We'll just build an array of buffers.
+                    return acc;
+                }, 0);
+
+                const chunkPromises = sortedChunks.map(c => this.state.storage.get<ArrayBuffer>(c.storageReference));
+                const chunkData = await Promise.all(chunkPromises);
+
+                // Filter out missing chunks
+                const validChunks = chunkData.filter(d => d !== undefined) as ArrayBuffer[];
+
+                // Concatenate
+                const totalLen = validChunks.reduce((acc, c) => acc + c.byteLength, 0);
+                const result = new Uint8Array(totalLen);
+                let offset = 0;
+                for (const chunk of validChunks) {
+                    result.set(new Uint8Array(chunk), offset);
+                    offset += chunk.byteLength;
+                }
+
+                return new Response(result, {
+                    headers: {
+                        'Content-Type': 'application/octet-stream',
+                        'Content-Disposition': `attachment; filename="${file.name}"`
+                    }
+                });
+            }
+
             if (method === 'GET' && path.startsWith('/api/files/')) {
                 // Get File Metadata (e.g. for download)
                 const id = path.split('/')[3];
@@ -107,12 +151,33 @@ export class FileSystemDO {
                 return Response.json(stats);
             }
 
-            // Chunk Upload (Update File Metadata)
+            // Chunk Upload (Update File Metadata & Store Content)
             if (method === 'POST' && path.startsWith('/api/files/') && path.endsWith('/chunks')) {
                 const id = path.split('/')[3];
-                const body = await request.json() as { chunk: Chunk };
-                await this.addChunk(id, body.chunk);
-                return new Response(null, { status: 200 });
+                const contentType = request.headers.get('content-type') || '';
+
+                if (contentType.includes('application/json')) {
+                    // Telegram Upload (Metadata only)
+                    const body = await request.json() as { chunk: Chunk };
+                    await this.addChunk(id, body.chunk);
+                    return new Response(null, { status: 200 });
+                } else {
+                    // Direct Binary Upload (DO Storage)
+                    const url = new URL(request.url);
+                    const order = parseInt(url.searchParams.get('order') || '0');
+                    const chunkData = await request.arrayBuffer();
+
+                    const storageRef = `chunk:${id}:${order}`;
+                    await this.state.storage.put(storageRef, chunkData);
+
+                    const chunk: Chunk = {
+                        order,
+                        storageReference: storageRef
+                    };
+
+                    await this.addChunk(id, chunk);
+                    return new Response(null, { status: 200 });
+                }
             }
 
             return new Response('Not Found', { status: 404 });

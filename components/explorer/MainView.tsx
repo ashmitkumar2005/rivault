@@ -8,7 +8,7 @@ import {
     ArrowUp, ArrowDown, FolderPlus, UploadCloud, MoreHorizontal, RefreshCw,
     Trash2, Edit2, FileText, Folder as FolderIcon, Music, Image as ImageIcon, Video, File as LucideFile, Search, ArrowLeft,
     CheckSquare, Square, Check, ChevronUp, ChevronDown, List, LayoutGrid,
-    FileCode, Archive, FileSpreadsheet, FileJson, FileType as FileTypeIcon
+    FileCode, Archive, FileSpreadsheet, FileJson, FileType as FileTypeIcon, Lock
 } from "lucide-react";
 import ContextMenu from "@/components/ui/ContextMenu";
 import Breadcrumb from "@/components/Breadcrumb";
@@ -51,7 +51,7 @@ export default function MainView() {
         handleDelete, handleRename, handleMove, fileTypeFilter,
         viewMode, toggleViewMode
     } = useFileSystem();
-    const { masterPassword } = useAuth();
+    const { masterPassword, logout } = useAuth();
 
     const [uploadProgress, setUploadProgress] = useState<{ name: string, percent: number } | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -852,6 +852,16 @@ export default function MainView() {
                     title={viewMode === 'list' ? "Switch to Grid View" : "Switch to List View"}
                 >
                     {viewMode === 'list' ? <LayoutGrid size={18} /> : <List size={18} />}
+                </button>
+
+                <div className="h-6 w-px bg-white/10 mx-2 hidden md:block" />
+
+                <button
+                    onClick={logout}
+                    className="p-2 hover:bg-red-500/10 hover:text-red-400 rounded-full text-zinc-400 transition-all"
+                    title="Lock Vault"
+                >
+                    <Lock size={18} />
                 </button>
             </div>
 

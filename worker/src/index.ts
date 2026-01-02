@@ -45,15 +45,34 @@ export default {
             return new Response(null, { headers: corsHeaders });
         }
 
-        // Auth Endpoint (Stub)
+        // Auth Endpoint
         if (url.pathname === '/api/auth/verify' && request.method === 'POST') {
-            // In real app, check hash. Here just say yes.
-            const response = new Response(JSON.stringify({ success: true }), {
-                headers: { 'Content-Type': 'application/json' }
-            });
-            // Add CORS
-            response.headers.set('Access-Control-Allow-Origin', '*');
-            return response;
+            try {
+                const body: any = await request.json();
+                const { password } = body;
+
+                if (password === '2903') {
+                    const response = new Response(JSON.stringify({ success: true }), {
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    response.headers.set('Access-Control-Allow-Origin', '*');
+                    return response;
+                } else {
+                    const response = new Response(JSON.stringify({ success: false, error: 'Invalid Password' }), {
+                        status: 401,
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    response.headers.set('Access-Control-Allow-Origin', '*');
+                    return response;
+                }
+            } catch (e) {
+                const response = new Response(JSON.stringify({ success: false, error: 'Bad Request' }), {
+                    status: 400,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                response.headers.set('Access-Control-Allow-Origin', '*');
+                return response;
+            }
         }
 
         // Stats Endpoint
@@ -159,52 +178,64 @@ export default {
             const chunks = file.chunks || [];
 
             if (chunks.length === 0) {
-                return new Response('File has no content', { status: 404, headers: corsHeaders });
-            }
+                // File might be empty (0 bytes) OR stored in DO.
+                // Fall through to standard DO forwarding at the bottom.
+                // This allows fs-do to serve the empty file or locally stored content.
+            } else {
+                // Check if it's a DO chunk (starts with "chunk:") or Telegram chunk
+                const isLocalChunk = chunks[0].storageReference.startsWith('chunk:');
 
-            // 2. Stream Response
-            const { readable, writable } = new TransformStream();
-            const writer = writable.getWriter();
+                if (isLocalChunk) {
+                    // Fall through to DO
+                } else {
+                    // Telegram Stream Logic
 
-            // Background streaming task
-            ctx.waitUntil((async () => {
-                try {
-                    // Sort chunks by order just in case
-                    chunks.sort((a: any, b: any) => a.order - b.order);
+                    // 2. Stream Response
+                    const { readable, writable } = new TransformStream();
+                    const writer = writable.getWriter();
 
-                    for (const chunk of chunks) {
-                        const stream = await import('./telegram').then(m => m.downloadChunk(chunk.storageReference, {
-                            botToken: env.TELEGRAM_BOT_TOKEN,
-                            chatId: env.TELEGRAM_CHAT_ID
-                        }));
+                    // Background streaming task
+                    ctx.waitUntil((async () => {
+                        try {
+                            // Sort chunks by order just in case
+                            chunks.sort((a: any, b: any) => a.order - b.order);
 
-                        if (stream) {
-                            // Pipe chunk stream to main response stream
-                            const reader = stream.getReader();
-                            while (true) {
-                                const { done, value } = await reader.read();
-                                if (done) break;
-                                await writer.write(value);
+                            for (const chunk of chunks) {
+                                const stream = await import('./telegram').then(m => m.downloadChunk(chunk.storageReference, {
+                                    botToken: env.TELEGRAM_BOT_TOKEN,
+                                    chatId: env.TELEGRAM_CHAT_ID
+                                }));
+
+                                if (stream) {
+                                    // Pipe chunk stream to main response stream
+                                    const reader = stream.getReader();
+                                    while (true) {
+                                        const { done, value } = await reader.read();
+                                        if (done) break;
+                                        await writer.write(value);
+                                    }
+                                }
                             }
+                            await writer.close();
+                        } catch (e) {
+                            console.error('Download stream error:', e);
+                            await writer.abort(e);
                         }
+                    })());
+
+                    const responseHeaders = new Headers(corsHeaders);
+                    responseHeaders.set('Content-Disposition', `attachment; filename="${file.name}"`);
+                    responseHeaders.set('Content-Type', file.mimeType || 'application/octet-stream');
+                    if (file.size) {
+                        responseHeaders.set('Content-Length', file.size.toString());
                     }
-                    await writer.close();
-                } catch (e) {
-                    console.error('Download stream error:', e);
-                    await writer.abort(e);
+
+                    return new Response(readable, {
+                        headers: responseHeaders
+                    });
                 }
-            })());
-
-            const responseHeaders = new Headers(corsHeaders);
-            responseHeaders.set('Content-Disposition', `attachment; filename="${file.name}"`);
-            responseHeaders.set('Content-Type', file.mimeType || 'application/octet-stream');
-            if (file.size) {
-                responseHeaders.set('Content-Length', file.size.toString());
             }
-
-            return new Response(readable, {
-                headers: responseHeaders
-            });
+            // If we didn't return above, we fall through to the DO fetch below.
         }
 
         // Forward other requests

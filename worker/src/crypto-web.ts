@@ -78,9 +78,9 @@ export async function generateDataKey(): Promise<{ raw: Uint8Array, key: CryptoK
         },
         true, // Extractable so we can wrap it or use the raw bytes if needed locally
         ["encrypt", "decrypt"]
-    );
+    ) as CryptoKey;
 
-    const raw = await crypto.subtle.exportKey("raw", key);
+    const raw = await crypto.subtle.exportKey("raw", key) as ArrayBuffer;
     return { raw: new Uint8Array(raw), key };
 }
 

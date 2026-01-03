@@ -1082,11 +1082,16 @@ export default function MainView() {
                                                     </div>
                                                 </div>
 
-                                                <div className="w-8 flex justify-center">
+                                                <div className="w-8 flex justify-center relative">
                                                     {isDir ? (
                                                         <FolderIcon size={20} className="text-yellow-500/80 group-hover:text-yellow-400 transition-colors" />
                                                     ) : (
                                                         getFileIcon((item as APIFile).name)
+                                                    )}
+                                                    {item.locked && (
+                                                        <div className="absolute -top-1 right-0 bg-zinc-900 rounded-full p-0.5 border border-zinc-700 shadow-md">
+                                                            <Lock size={8} className="text-red-400" />
+                                                        </div>
                                                     )}
                                                 </div>
                                                 <div className={`font-medium truncate ${isSel ? "text-blue-100" : isFocused ? "text-white" : "text-zinc-300 group-hover:text-white"}`}>
@@ -1182,12 +1187,17 @@ export default function MainView() {
                                                 </div>
                                             </div>
 
-                                            <div className="mb-3">
+                                            <div className="mb-3 relative">
                                                 {isDir ? (
                                                     <FolderIcon size={48} className="text-yellow-500/80 group-hover:text-yellow-400 transition-colors" />
                                                 ) : (
                                                     <div className="w-12 h-12 flex items-center justify-center">
                                                         {React.cloneElement(getFileIcon((item as APIFile).name) as any, { size: 40 })}
+                                                    </div>
+                                                )}
+                                                {item.locked && (
+                                                    <div className="absolute -top-1 -right-1 bg-zinc-900 rounded-full p-1 border border-zinc-700 shadow-md">
+                                                        <Lock size={12} className="text-red-400" />
                                                     </div>
                                                 )}
                                             </div>

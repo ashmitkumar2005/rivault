@@ -74,18 +74,21 @@ export class FileSystemDO {
                 if (!file) return new Response('File not found', { status: 404 });
                 if (!('chunks' in file)) return new Response('Not a file', { status: 400 });
 
+                // Check Lock
+                if (file.locked) {
+                    const lockPassword = url.searchParams.get('lockKey');
+                    if (file.lockPassword !== lockPassword) {
+                        return new Response('Locked', { status: 403 });
+                    }
+                }
+
                 // Retreive all chunks
                 // For a real production system, we'd use R2 or stream ranges.
                 // Here we fetch all chunks from DO storage and concatenate.
                 // NOTE: This assumes file fits in memory/limits.
 
                 const sortedChunks = file.chunks.sort((a, b) => a.order - b.order);
-                const combinedSize = sortedChunks.reduce((acc, c) => {
-                    // We don't verify size here, we just concat.
-                    // But we need the data size. 
-                    // We'll just build an array of buffers.
-                    return acc;
-                }, 0);
+                // ... (rest of download logic)
 
                 const chunkPromises = sortedChunks.map(c => this.state.storage.get<ArrayBuffer>(c.storageReference));
                 const chunkData = await Promise.all(chunkPromises);
@@ -140,6 +143,30 @@ export class FileSystemDO {
                 await this.deleteNode(id);
                 return new Response(null, { status: 200 });
             }
+
+            // --- Locking API ---
+            if (method === 'POST' && path.startsWith('/api/nodes/') && path.endsWith('/lock')) {
+                const id = path.split('/')[3];
+                const body = await request.json() as { password: string };
+                await this.lockNode(id, body.password);
+                return new Response(null, { status: 200 });
+            }
+
+            if (method === 'POST' && path.startsWith('/api/nodes/') && path.endsWith('/unlock')) {
+                const id = path.split('/')[3];
+                const body = await request.json() as { password: string };
+                await this.unlockNode(id, body.password);
+                return new Response(null, { status: 200 });
+            }
+
+            if (method === 'POST' && path.startsWith('/api/nodes/') && path.endsWith('/verify-lock')) {
+                const id = path.split('/')[3];
+                const body = await request.json() as { password: string };
+                const valid = await this.verifyNodeLock(id, body.password);
+                if (!valid) return new Response('Invalid Password', { status: 401 });
+                return new Response(JSON.stringify({ success: true }), { headers: { 'Content-Type': 'application/json' } });
+            }
+
 
             if (method === 'GET' && path === '/api/init') {
                 return Response.json({ rootId: this.rootId });
@@ -293,7 +320,14 @@ export class FileSystemDO {
         const keys = childrenIds.map(id => `${KEY_PREFIX_NODE}${id}`);
         // @ts-ignore
         const nodesMap = await this.state.storage.get<Folder | File>(keys);
-        return Array.from(nodesMap.values());
+
+        // Strip sensitivity data
+        const nodes = Array.from(nodesMap.values()).map(node => {
+            const { lockPassword, ...safeNode } = node as any;
+            return safeNode;
+        });
+
+        return nodes;
     }
 
     async createFolder(parentId: string, name: string): Promise<Folder> {
@@ -476,5 +510,32 @@ export class FileSystemDO {
 
         // Delete self
         await this.state.storage.delete(`${KEY_PREFIX_NODE}${id}`);
+    }
+    // Use clear text password for now as requested (simple lock)
+    async lockNode(id: string, password: string) {
+        const node = await this.getNode(id);
+        if (!node) throw new ClientError("Node not found", 404);
+
+        node.locked = true;
+        node.lockPassword = password;
+        await this.saveNode(node);
+    }
+
+    async unlockNode(id: string, password: string) {
+        const node = await this.getNode(id);
+        if (!node) throw new ClientError("Node not found", 404);
+
+        if (node.lockPassword !== password) throw new ClientError("Invalid Password", 403);
+
+        node.locked = false;
+        delete node.lockPassword;
+        await this.saveNode(node);
+    }
+
+    async verifyNodeLock(id: string, password: string): Promise<boolean> {
+        const node = await this.getNode(id);
+        if (!node) return false;
+        if (!node.locked) return true; // Not locked = valid access
+        return node.lockPassword === password;
     }
 }

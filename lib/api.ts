@@ -7,6 +7,7 @@ export type APIFolder = {
     parentId: string;
     name: string;
     createdAt: number;
+    locked?: boolean;
     size?: never;
     mimeType?: never;
 };
@@ -19,6 +20,7 @@ export type APIFile = {
     mimeType: string;
     createdAt: number;
     updatedAt: number;
+    locked?: boolean;
 };
 
 export type APINode = APIFolder | APIFile;
@@ -141,8 +143,12 @@ export async function uploadFile(
     return fileMeta;
 }
 
-export function getDownloadUrl(fileId: string): string {
-    return `${API_URL}/files/${fileId}/download`;
+export function getDownloadUrl(fileId: string, lockPassword?: string): string {
+    const url = `${API_URL}/files/${fileId}/download`;
+    if (lockPassword) {
+        return `${url}?lockKey=${encodeURIComponent(lockPassword)}`;
+    }
+    return url;
 }
 
 // Helper: Convert Hex String to Uint8Array (Duplicated from crypto-web if internal only there, 
@@ -158,11 +164,12 @@ function hex2buf(hex: string): Uint8Array {
 
 export async function downloadAndDecryptFile(
     fileMeta: APIFile & { encryption?: any },
-    password?: string
+    password?: string,
+    lockPassword?: string
 ): Promise<Blob> {
     // 1. If not encrypted, just download normally (or via proxy)
     if (!fileMeta.encryption || !password) {
-        const res = await fetch(getDownloadUrl(fileMeta.id));
+        const res = await fetch(getDownloadUrl(fileMeta.id, lockPassword));
         if (!res.ok) throw new Error('Download failed');
         return await res.blob();
     }
@@ -180,7 +187,7 @@ export async function downloadAndDecryptFile(
     // Our encryption prepends IV(12) and Tag(16) to each chunk.
 
     // FETCH THE RAW STREAM
-    const res = await fetch(getDownloadUrl(fileMeta.id));
+    const res = await fetch(getDownloadUrl(fileMeta.id, lockPassword));
     if (!res.ok) throw new Error('Download failed');
     if (!res.body) throw new Error('No body in response');
 
@@ -283,4 +290,31 @@ export async function getStorageStats(): Promise<any> {
     const res = await fetch(`${API_URL}/stats`, { headers: getHeaders() });
     if (!res.ok) throw new Error('Failed to get stats');
     return res.json();
+}
+
+export async function lockNode(nodeId: string, password: string): Promise<void> {
+    const res = await fetch(`${API_URL}/nodes/${nodeId}/lock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getHeaders() },
+        body: JSON.stringify({ password })
+    });
+    if (!res.ok) throw new Error('Failed to lock item');
+}
+
+export async function unlockNode(nodeId: string, password: string): Promise<void> {
+    const res = await fetch(`${API_URL}/nodes/${nodeId}/unlock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getHeaders() },
+        body: JSON.stringify({ password })
+    });
+    if (!res.ok) throw new Error('Failed to unlock item');
+}
+
+export async function verifyLock(nodeId: string, password: string): Promise<boolean> {
+    const res = await fetch(`${API_URL}/nodes/${nodeId}/verify-lock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getHeaders() },
+        body: JSON.stringify({ password })
+    });
+    return res.ok;
 }

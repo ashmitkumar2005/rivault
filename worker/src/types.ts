@@ -13,6 +13,8 @@ export interface Folder {
     parentId: string | null;
     name: string;
     createdAt: number;
+    locked?: boolean;
+    lockPassword?: string; // Clear text for now as per plan (or hashed if preferred, plan said password)
 }
 
 export interface File {
@@ -25,6 +27,8 @@ export interface File {
     mimeType: string;
     createdAt: number;
     updatedAt: number;
+    locked?: boolean;
+    lockPassword?: string;
 
     // Encryption Metadata
     encryption?: {

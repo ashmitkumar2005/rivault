@@ -10,10 +10,11 @@ interface InputModalProps {
     initialValue?: string;
     placeholder?: string;
     submitLabel?: string;
+    type?: string;
 }
 
 export default function InputModal({
-    isOpen, onClose, onSubmit, title, message, initialValue = "", placeholder, submitLabel = "Submit"
+    isOpen, onClose, onSubmit, title, message, initialValue = "", placeholder, submitLabel = "Submit", type = "text"
 }: InputModalProps) {
     const [value, setValue] = useState(initialValue);
 
@@ -23,6 +24,7 @@ export default function InputModal({
 
     const handleSubmit = (e?: React.FormEvent) => {
         e?.preventDefault();
+        // if (!value.trim()) return; // Allow empty if type is password? No, empty password usually invalid. 
         if (!value.trim()) return;
         onSubmit(value);
         onClose();
@@ -54,7 +56,7 @@ export default function InputModal({
             <form onSubmit={handleSubmit}>
                 {message && <p className="text-sm text-zinc-400 mb-4">{message}</p>}
                 <input
-                    type="text"
+                    type={type}
                     autoFocus
                     className="w-full bg-black/40 border border-white/10 text-white px-4 py-3 rounded-xl focus:ring-2 focus:ring-blue-500/50 outline-none placeholder-zinc-600 transition-all"
                     placeholder={placeholder}

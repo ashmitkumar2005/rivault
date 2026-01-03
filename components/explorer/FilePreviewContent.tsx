@@ -8,9 +8,10 @@ import { listZipContents } from '@/lib/archive';
 
 interface FilePreviewContentProps {
     item: APIFile;
+    lockPassword?: string;
 }
 
-export default function FilePreviewContent({ item }: FilePreviewContentProps) {
+export default function FilePreviewContent({ item, lockPassword }: FilePreviewContentProps) {
     const { masterPassword } = useAuth();
     const [content, setContent] = useState<string | null>(null);
     const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -26,7 +27,7 @@ export default function FilePreviewContent({ item }: FilePreviewContentProps) {
             setLoading(true);
             setError(null);
             try {
-                const decryptedBlob = await downloadAndDecryptFile(item, masterPassword || undefined);
+                const decryptedBlob = await downloadAndDecryptFile(item, masterPassword || undefined, lockPassword);
                 if (isStopped) return;
 
                 const url = window.URL.createObjectURL(decryptedBlob);
@@ -57,7 +58,7 @@ export default function FilePreviewContent({ item }: FilePreviewContentProps) {
                 window.URL.revokeObjectURL(blobUrl);
             }
         };
-    }, [item.id, masterPassword]);
+    }, [item.id, masterPassword, lockPassword]);
 
     // Handle blobUrl cleanup specifically when it changes
     useEffect(() => {

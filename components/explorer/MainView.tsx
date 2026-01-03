@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useFileSystem } from "@/components/providers/FileSystemProvider";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { APIFile, APIFolder, APINode, isFolder, uploadFile, createFolder, getDownloadUrl, moveNode, downloadAndDecryptFile } from "@/lib/api";
+import { APIFile, APIFolder, APINode, isFolder, uploadFile, createFolder, getDownloadUrl, moveNode, downloadAndDecryptFile, lockNode, unlockNode, verifyLock } from "@/lib/api";
 import {
     ArrowUp, ArrowDown, FolderPlus, UploadCloud, MoreHorizontal, RefreshCw,
     Trash2, Edit2, FileText, Folder as FolderIcon, Music, Image as ImageIcon, Video, File as LucideFile, Search, ArrowLeft,
@@ -71,9 +71,11 @@ export default function MainView() {
     const [renameModal, setRenameModal] = useState<{ isOpen: boolean, id: string, name: string }>({ isOpen: false, id: '', name: '' });
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean, count: number }>({ isOpen: false, count: 0 });
     const [alertModal, setAlertModal] = useState<{ isOpen: boolean, title: string, message: string }>({ isOpen: false, title: '', message: '' });
-    const [previewItem, setPreviewItem] = useState<APIFile | null>(null);
+    const [previewItem, setPreviewItem] = useState<{ file: APIFile, password?: string } | null>(null);
     const [compressModal, setCompressModal] = useState<{ isOpen: boolean, items: APIFile[] }>({ isOpen: false, items: [] });
     const [textEditor, setTextEditor] = useState<{ isOpen: boolean, file: APIFile | null, content: string }>({ isOpen: false, file: null, content: '' });
+    const [lockModal, setLockModal] = useState<{ isOpen: boolean, item: APIFile | APIFolder | null }>({ isOpen: false, item: null });
+    const [unlockModal, setUnlockModal] = useState<{ isOpen: boolean, item: APIFile | APIFolder | null, action: 'open' | 'download' }>({ isOpen: false, item: null, action: 'open' });
 
     // Box Selection State
     const [isBoxSelecting, setIsBoxSelecting] = useState(false);
@@ -196,9 +198,14 @@ export default function MainView() {
         }
     };
 
-    const handleSecureDownload = async (item: APIFile) => {
+    const handleSecureDownload = async (item: APIFile, lockPassword?: string) => {
         try {
-            const blob = await downloadAndDecryptFile(item, masterPassword || undefined);
+            if (item.locked && !lockPassword) {
+                setUnlockModal({ isOpen: true, item, action: 'download' });
+                return;
+            }
+
+            const blob = await downloadAndDecryptFile(item, masterPassword || undefined, lockPassword);
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -276,6 +283,11 @@ export default function MainView() {
     const onDoubleClick = async (item: APIFile | APIFolder) => {
         if (isSelectMode) return;
 
+        if (item.locked) {
+            setUnlockModal({ isOpen: true, item, action: 'open' });
+            return;
+        }
+
         if (isFolder(item)) {
             navigateTo(item.id, item.name);
         } else {
@@ -298,7 +310,7 @@ export default function MainView() {
                     setAlertModal({ isOpen: true, title: 'Error', message: 'Failed to open file: ' + e.message });
                 }
             } else {
-                setPreviewItem(item as APIFile);
+                setPreviewItem({ file: item as APIFile });
             }
         }
     };
@@ -496,6 +508,10 @@ export default function MainView() {
 
             const filesForZip = [];
             for (const item of itemsToZip) {
+                if (item.locked) {
+                    setAlertModal({ isOpen: true, title: 'Error', message: `Cannot compress locked file: ${item.name}` });
+                    return;
+                }
                 const blob = await downloadAndDecryptFile(item, masterPassword || undefined);
                 const buffer = await blob.arrayBuffer();
                 filesForZip.push({ name: item.name, data: new Uint8Array(buffer) });
@@ -521,6 +537,56 @@ export default function MainView() {
         }
     };
 
+    const handleLockSubmit = async (password: string) => {
+        if (!lockModal.item) return;
+        try {
+            await lockNode(lockModal.item.id, password);
+            refresh();
+            setLockModal({ isOpen: false, item: null });
+        } catch (e: any) {
+            setAlertModal({ isOpen: true, title: 'Lock Failed', message: e.message });
+        }
+    };
+
+    const handleUnlockSubmit = async (password: string) => {
+        const { item, action } = unlockModal;
+        if (!item) return;
+
+        try {
+            const valid = await verifyLock(item.id, password);
+            if (!valid) {
+                // Should show error in modal, but InputModal might close on submit?
+                // Assuming InputModal handles error or we just alert. 
+                // Let's use alert for now to keep it simple as designed in plan.
+                throw new Error("Invalid Password");
+            }
+
+            if (action === 'download') {
+                setUnlockModal({ isOpen: false, item: null, action: 'open' });
+                handleSecureDownload(item as APIFile, password);
+            } else if (action === 'open') {
+                if (isFolder(item)) {
+                    navigateTo(item.id, item.name);
+                } else {
+                    const blob = await downloadAndDecryptFile(item as APIFile, masterPassword || undefined, password);
+                    const ext = item.name.split('.').pop()?.toLowerCase() || '';
+                    const textExts = ['txt', 'md', 'json', 'js', 'ts', 'tsx', 'jsx', 'env', 'yml', 'yaml', 'xml', 'html', 'css', 'py', 'java', 'c', 'cpp', 'h', 'cs', 'sh', 'bat', 'sql', 'gitignore', 'dockerfile'];
+
+                    if (textExts.includes(ext)) {
+                        const text = await blob.text();
+                        setTextEditor({ isOpen: true, file: item as APIFile, content: text });
+                    } else {
+                        // Use PreviewModal for all other types, passing the password
+                        setPreviewItem({ file: item as APIFile, password });
+                    }
+                }
+                setUnlockModal({ isOpen: false, item: null, action: 'open' });
+            }
+        } catch (e: any) {
+            setAlertModal({ isOpen: true, title: 'Access Denied', message: e.message });
+        }
+    };
+
     const handleContextAction = async (action: string, item?: APIFile | APIFolder) => {
         setContextMenu(null);
 
@@ -537,7 +603,7 @@ export default function MainView() {
                 if (item) onDoubleClick(item);
                 break;
             case 'preview':
-                if (item && !isFolder(item)) setPreviewItem(item as APIFile);
+                if (item && !isFolder(item)) setPreviewItem({ file: item as APIFile });
                 break;
             case 'download':
                 if (item) handleSecureDownload(item as APIFile);
@@ -550,8 +616,23 @@ export default function MainView() {
                 break;
             case 'rename':
                 if (item) {
+                    if (item.locked) {
+                        setAlertModal({ isOpen: true, title: 'Action Denied', message: 'Cannot rename locked item.' });
+                        return;
+                    }
                     setSelectedIds(new Set([item.id]));
                     setRenameModal({ isOpen: true, id: item.id, name: item.name });
+                }
+                break;
+            case 'lock':
+                if (item) setLockModal({ isOpen: true, item });
+                break;
+            case 'unlock':
+                if (item) {
+                    const pwd = prompt("Enter password to unlock permanently:");
+                    if (pwd) {
+                        unlockNode(item.id, pwd).then(refresh).catch(e => alert(e.message));
+                    }
                 }
                 break;
             case 'delete':
@@ -1129,15 +1210,34 @@ export default function MainView() {
             {/* Drag Box Overlay */}
             {isBoxSelecting && <SelectionBox start={selectionStart} current={selectionCurrent} />}
 
+            {/* Lock/Unlock Modals */}
+            <InputModal
+                isOpen={lockModal.isOpen}
+                onClose={() => setLockModal({ isOpen: false, item: null })}
+                onSubmit={handleLockSubmit}
+                title={`Lock ${lockModal.item?.name}`}
+                placeholder="Enter password"
+                type="password"
+            />
+
+            <InputModal
+                isOpen={unlockModal.isOpen}
+                onClose={() => setUnlockModal({ isOpen: false, item: null, action: 'open' })}
+                onSubmit={handleUnlockSubmit}
+                title={`Unlock ${unlockModal.item?.name}`}
+                placeholder="Enter password to access"
+                type="password"
+            />
+
             {/* Context Menu */}
             {contextMenu && (
                 <ContextMenu
                     x={contextMenu.x}
                     y={contextMenu.y}
                     item={contextMenu.item}
-                    type={contextMenu.type}
                     onClose={() => setContextMenu(null)}
-                    onAction={handleContextAction}
+                    onAction={(action) => handleContextAction(action, contextMenu.item)}
+                    type={contextMenu.type || 'item'}
                 />
             )}
 
@@ -1223,11 +1323,11 @@ export default function MainView() {
                 <PreviewModal
                     isOpen={!!previewItem}
                     onClose={() => setPreviewItem(null)}
-                    title={previewItem.name}
-                    onDownload={() => handleSecureDownload(previewItem)}
-                    onExternal={() => handleSecureDownload(previewItem)}
+                    title={previewItem.file.name}
+                    onDownload={() => handleSecureDownload(previewItem.file, previewItem.password)}
+                    onExternal={() => handleSecureDownload(previewItem.file, previewItem.password)}
                 >
-                    <FilePreviewContent item={previewItem} />
+                    <FilePreviewContent item={previewItem.file} lockPassword={previewItem.password} />
                 </PreviewModal>
             )}
 

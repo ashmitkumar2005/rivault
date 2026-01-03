@@ -4,7 +4,7 @@ import React, { useEffect, useRef } from "react";
 import { APIFile, APIFolder, isFolder } from "@/lib/api";
 import {
     FolderOpen, Download, Edit2, Trash2, ExternalLink, Link, Eye, Archive, FileArchive,
-    Plus, FolderPlus, FilePlus, RefreshCw, Info, FileText
+    Plus, FolderPlus, FilePlus, RefreshCw, Info, FileText, Lock, Unlock
 } from "lucide-react";
 
 interface ContextMenuProps {
@@ -170,6 +170,30 @@ export default function ContextMenu({ x, y, item, type = 'item', onClose, onActi
                 </>
             )}
 
+
+
+            <div className="h-px bg-white/5 my-1 mx-2" />
+
+            {
+                item.locked ? (
+                    <button
+                        onClick={() => onAction('unlock', item)}
+                        className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-200 hover:bg-white/10 rounded-lg transition-colors group"
+                    >
+                        <Unlock size={16} className="text-zinc-400 group-hover:text-green-400" />
+                        <span>Unlock</span>
+                    </button>
+                ) : (
+                    <button
+                        onClick={() => onAction('lock', item)}
+                        className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-200 hover:bg-white/10 rounded-lg transition-colors group"
+                    >
+                        <Lock size={16} className="text-zinc-400 group-hover:text-red-400" />
+                        <span>Lock</span>
+                    </button>
+                )
+            }
+
             <div className="h-px bg-white/5 my-1 mx-2" />
 
             <button
@@ -187,6 +211,6 @@ export default function ContextMenu({ x, y, item, type = 'item', onClose, onActi
                 <Trash2 size={16} className="text-red-400 group-hover:text-red-300" />
                 <span>Delete</span>
             </button>
-        </div>
+        </div >
     );
 }

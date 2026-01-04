@@ -1,19 +1,20 @@
-"use client";
-
 import React, { useState } from "react";
 import { APIFolder, listFolder, isFolder } from "@/lib/api";
 import { useFileSystem, FileType } from "@/components/providers/FileSystemProvider";
-import { ChevronRight, Folder, FolderOpen, HardDrive, PieChart, Image as ImageIcon, Video, Music, FileText, ChevronLeft, Menu } from "lucide-react";
+import { ChevronRight, Folder, FolderOpen, HardDrive, PieChart, Image as ImageIcon, Video, Music, FileText, ChevronLeft, Plus, Server } from "lucide-react";
 import Image from "next/image";
+import AddDriveModal from "./AddDriveModal";
 
 // Recursive Node
 function FolderNode({ folder, depth = 0, isCollapsed }: { folder: APIFolder; depth?: number; isCollapsed: boolean }) {
     const { currentPath, navigateTo } = useFileSystem();
-    const [isOpen, setIsOpen] = useState(false);
+    const [isOpen, setIsOpen] = useState(depth === 0); // Open root by default
     const [children, setChildren] = useState<APIFolder[]>([]);
     const [loaded, setLoaded] = useState(false);
 
     const isActive = currentPath === folder.id;
+    const isDrive = folder.type === 'drive';
+    const isSystemRoot = depth === 0 && folder.id === 'root';
 
     const handleToggle = async (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -33,6 +34,11 @@ function FolderNode({ folder, depth = 0, isCollapsed }: { folder: APIFolder; dep
         navigateTo(folder.id, folder.name);
     };
 
+    // Calculate usage percentage if drive
+    const usagePercent = isDrive && folder.quota && folder.usage
+        ? Math.min(100, (folder.usage / folder.quota) * 100)
+        : 0;
+
     return (
         <div className="select-none animate-fade-in group/node">
             <div
@@ -40,23 +46,10 @@ function FolderNode({ folder, depth = 0, isCollapsed }: { folder: APIFolder; dep
                     ? "bg-blue-600/20 text-blue-200 border border-blue-500/20"
                     : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
                     }`}
-                // Remove padding indentation on mobile or when collapsed
                 style={{ paddingLeft: (typeof window !== 'undefined' && window.innerWidth >= 768 && !isCollapsed) ? `${depth * 12 + 12}px` : undefined }}
                 onClick={handleClick}
                 title={isCollapsed ? folder.name : undefined}
             >
-                {/* Toggle Button - Hidden on mobile for cleaner look, or maybe show it? Mobile tree nav is hard sideways. 
-                    Let's hide tree expansion on mobile for now and just show current folder? 
-                    Actually, let's keep it but make it tiny or hidden. user wants "icon only".
-                    Tree view in icon-only mode is really hard. 
-                    Let's just show the icon.
-                 */}
-                {/* Toggle Button - Hidden on mobile for cleaner look, or maybe show it? Mobile tree nav is hard sideways. 
-                    Let's hide tree expansion on mobile for now and just show current folder? 
-                    Actually, let's keep it but make it tiny or hidden. user wants "icon only".
-                    Tree view in icon-only mode is really hard. 
-                    Let's just show the icon.
-                 */}
                 {!isCollapsed && (
                     <div className="hidden md:flex items-center min-w-[20px] justify-center mr-1">
                         <button
@@ -71,26 +64,40 @@ function FolderNode({ folder, depth = 0, isCollapsed }: { folder: APIFolder; dep
                     </div>
                 )}
 
-                {/* Folder Icon */}
-                <span className={`transition-colors ${!isCollapsed ? 'md:mr-2.5' : ''} ${isActive ? "text-blue-400" : "text-yellow-500/80 group-hover:text-yellow-400"}`}>
-                    {isOpen ? <FolderOpen size={20} className={`${!isCollapsed ? 'md:w-4 md:h-4' : ''}`} /> : <Folder size={20} className={`${!isCollapsed ? 'md:w-4 md:h-4' : ''}`} />}
+                {/* Icon Logic */}
+                <span className={`transition-colors ${!isCollapsed ? 'md:mr-2.5' : ''} ${isActive ? "text-blue-400" : isDrive ? "text-purple-400" : isSystemRoot ? "text-zinc-100" : "text-yellow-500/80 group-hover:text-yellow-400"}`}>
+                    {isSystemRoot ? (
+                        <Server size={20} className={`${!isCollapsed ? 'md:w-4 md:h-4' : ''}`} />
+                    ) : isDrive ? (
+                        <HardDrive size={20} className={`${!isCollapsed ? 'md:w-4 md:h-4' : ''}`} />
+                    ) : isOpen ? (
+                        <FolderOpen size={20} className={`${!isCollapsed ? 'md:w-4 md:h-4' : ''}`} />
+                    ) : (
+                        <Folder size={20} className={`${!isCollapsed ? 'md:w-4 md:h-4' : ''}`} />
+                    )}
                 </span>
 
-                {!isCollapsed && <span className="hidden md:block truncate text-sm font-medium tracking-wide animate-fade-in">{folder.name}</span>}
+                {!isCollapsed && (
+                    <div className="hidden md:block flex-1 min-w-0">
+                        <div className="truncate text-sm font-medium tracking-wide animate-fade-in">{folder.name}</div>
+                        {isDrive && folder.quota && (
+                            <div className="mt-1 w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                                <div
+                                    className={`h-full rounded-full transition-all duration-500 ${usagePercent > 90 ? 'bg-red-500' : 'bg-blue-500'}`}
+                                    style={{ width: `${usagePercent}%` }}
+                                />
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
-            {/* Children - Only show on desktop for deep tree navigation, or if expanded? 
-                If we hide children on mobile, they can't nav. 
-                Let's allow children rendering but they will also be just icons.
-            */}
             {isOpen && !isCollapsed && (
                 <div className="relative">
-                    {/* Tree Guide Line - Desktop Only */}
                     <div
                         className={`hidden md:block absolute top-0 bottom-2 w-px bg-white/5 ${isCollapsed ? 'hidden' : ''}`}
                         style={{ left: `${depth * 12 + 21}px` }}
                     />
-
                     {children.map(child => (
                         <FolderNode key={child.id} folder={child} depth={depth + 1} isCollapsed={isCollapsed} />
                     ))}
@@ -100,12 +107,12 @@ function FolderNode({ folder, depth = 0, isCollapsed }: { folder: APIFolder; dep
     );
 }
 
-
 export default function Sidebar() {
-    // Root is special.
-    const rootFolder: APIFolder = { id: 'root', parentId: '', name: 'My Drive', createdAt: 0 };
+    // Root is "This PC" now
+    const rootFolder: APIFolder = { id: 'root', parentId: '', name: 'This PC', createdAt: 0, type: 'folder' };
     const { storageUsage, fileTypeFilter, setFileTypeFilter } = useFileSystem();
     const [isCollapsed, setIsCollapsed] = useState(false);
+    const [isAddDriveOpen, setIsAddDriveOpen] = useState(false);
 
     const formatSize = (bytes: number) => {
         if (bytes === 0) return '0 B';
@@ -162,9 +169,20 @@ export default function Sidebar() {
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto px-1 py-2 scroll-smooth">
                 {/* Locations Header - Mobile Icon Only */}
-                <div className={`flex items-center justify-center ${!isCollapsed ? 'md:justify-start space-x-0 md:space-x-2' : ''} px-2 ${!isCollapsed ? 'md:px-4' : ''} mb-3 text-xs font-bold text-zinc-500 uppercase tracking-widest`}>
-                    <HardDrive size={16} className={`${!isCollapsed ? 'md:w-3 md:h-3' : ''}`} />
-                    {!isCollapsed && <span className="hidden md:block animate-fade-in">Locations</span>}
+                <div className={`flex items-center justify-between ${!isCollapsed ? 'md:justify-between space-x-0 md:space-x-2' : 'justify-center'} px-2 ${!isCollapsed ? 'md:px-4' : ''} mb-3`}>
+                    <div className="flex items-center text-xs font-bold text-zinc-500 uppercase tracking-widest">
+                        <HardDrive size={16} className={`${!isCollapsed ? 'md:w-3 md:h-3 md:mr-2' : ''}`} />
+                        {!isCollapsed && <span className="hidden md:block animate-fade-in">Locations</span>}
+                    </div>
+                    {!isCollapsed && (
+                        <button
+                            onClick={() => setIsAddDriveOpen(true)}
+                            className="p-1 hover:bg-white/10 rounded text-zinc-500 hover:text-white transition-colors"
+                            title="Add New Drive"
+                        >
+                            <Plus size={14} />
+                        </button>
+                    )}
                 </div>
 
                 <FolderNode folder={rootFolder} isCollapsed={isCollapsed} />
@@ -195,14 +213,24 @@ export default function Sidebar() {
                 {!isCollapsed && (
                     <div className="hidden md:flex items-end justify-between animate-fade-in">
                         <span className="text-xl font-bold text-white">{formatSize(storageUsage)}</span>
-                        <span className="text-[10px] text-zinc-500 font-mono mb-1">UNLIMITED</span>
+                        <span className="text-[10px] text-zinc-500 font-mono mb-1">AGGREGATE</span>
                     </div>
                 )}
-                {/* Mobile Usage Text - Show when collapsed logic mimics mobile */}
                 <div className={`${!isCollapsed ? 'md:hidden' : 'block'} text-[10px] text-zinc-400 text-center mt-1`}>
                     {formatSize(storageUsage)}
                 </div>
             </div>
+
+            <AddDriveModal
+                isOpen={isAddDriveOpen}
+                onClose={() => setIsAddDriveOpen(false)}
+                onSuccess={() => {
+                    // Logic to reload sidebar or notify?
+                    // FolderNode internal state won't auto-update if it's already open.
+                    // We might need a global refresh signal or just close/open root.
+                    window.location.reload(); // Brute force refresh for now to pick up new drive in "This PC"
+                }}
+            />
         </div>
     );
 }

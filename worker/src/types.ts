@@ -14,7 +14,12 @@ export interface Folder {
     name: string;
     createdAt: number;
     locked?: boolean;
-    lockPassword?: string; // Clear text for now as per plan (or hashed if preferred, plan said password)
+    lockPassword?: string;
+
+    // Drive Metadata
+    type?: 'drive' | 'folder'; // Defaults to 'folder'
+    quota?: number; // bytes
+    usage?: number; // bytes (tracked for drives)
 }
 
 export interface File {

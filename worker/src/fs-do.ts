@@ -66,6 +66,19 @@ export class FileSystemDO {
                 return Response.json(file);
             }
 
+            // --- Drive API ---
+            if (method === 'POST' && path === '/api/drives') {
+                const body = await request.json() as { letter: string, size: number };
+                const drive = await this.createDrive(body.letter, body.size);
+                return Response.json(drive);
+            }
+
+            if (method === 'DELETE' && path.startsWith('/api/drives/')) {
+                const id = path.split('/').pop()!;
+                await this.deleteDrive(id);
+                return new Response(null, { status: 200 });
+            }
+
             if (method === 'GET' && path.startsWith('/api/files/') && path.endsWith('/download')) {
                 // Download File Content
                 const id = path.split('/')[3];
@@ -251,46 +264,73 @@ export class FileSystemDO {
 
     // 1. Initialization
     private async ensureInitialized() {
-        if (this.rootId) {
-            // Just verifying stats exist, if not, migrate (lazy migration)
-            // But ensureInitialized is called every request, so we should keep it cheap.
-            // We can check a memory flag or similar?
-            // For now, let's just trust that if rootId exists, we are good, OR we check stats once.
-            return;
-        }
+        if (this.rootId) return;
 
+        // Load root ID
         this.rootId = await this.state.storage.get<string>(KEY_ROOT) || null;
         let stats = await this.state.storage.get<StorageStats>(KEY_STATS);
+        const version = await this.state.storage.get<number>('system_version') || 0;
 
-        if (!this.rootId) {
-            // First time boot
-            const rootId = this.generateId();
-            const rootFolder: Folder = {
-                id: rootId,
+        if (version < 1) {
+            // Migration to Multi-Drive System (v1)
+            const systemRootId = this.generateId();
+            const systemRoot: Folder = {
+                id: systemRootId,
                 parentId: null,
-                name: 'Rivault',
+                name: 'This PC',
                 createdAt: Date.now(),
+                type: 'folder' // System root is a specialized folder, but we treat drives as children
             };
 
-            await this.state.storage.put(KEY_ROOT, rootId);
-            await this.saveNode(rootFolder);
-            this.rootId = rootId;
-            stats = { totalUsed: 0, fileCount: 0, folderCount: 1 };
-            await this.state.storage.put(KEY_STATS, stats);
-        } else if (!stats) {
-            // Migration: Calculate stats from existing nodes
-            stats = { totalUsed: 0, fileCount: 0, folderCount: 0 };
-            const nodes = await this.state.storage.list<Folder | File>({ prefix: KEY_PREFIX_NODE });
+            if (this.rootId) {
+                // Existing System: Convert old root to "Drive C"
+                const oldRootId = this.rootId;
+                const oldRoot = await this.getNode(oldRootId) as Folder;
+                if (oldRoot) {
+                    oldRoot.parentId = systemRootId;
+                    oldRoot.name = 'Local Disk (C:)';
+                    oldRoot.type = 'drive';
+                    oldRoot.quota = 10 * 1024 * 1024 * 1024; // Default 10GB for C:
+                    oldRoot.usage = stats?.totalUsed || 0;
+                    await this.saveNode(oldRoot);
 
-            for (const node of nodes.values()) {
-                if ('chunks' in node) { // File
-                    stats.fileCount++;
-                    stats.totalUsed += node.size;
-                } else { // Folder
-                    stats.folderCount++;
+                    // Link old root as child of new system root
+                    await this.state.storage.put(`${KEY_PREFIX_CHILDREN}${systemRootId}`, [oldRootId]);
                 }
+            } else {
+                // Fresh System: Create System Root + Drive C
+                const driveId = this.generateId();
+                const driveC: Folder = {
+                    id: driveId,
+                    parentId: systemRootId,
+                    name: 'Local Disk (C:)', // Windows style
+                    createdAt: Date.now(),
+                    type: 'drive',
+                    quota: 10 * 1024 * 1024 * 1024, // 10GB
+                    usage: 0
+                };
+                await this.saveNode(driveC);
+                await this.state.storage.put(`${KEY_PREFIX_CHILDREN}${systemRootId}`, [driveId]);
+
+                // Init stats if missing
+                stats = { totalUsed: 0, fileCount: 0, folderCount: 2 }; // SystemRoot + DriveC
+                await this.state.storage.put(KEY_STATS, stats);
             }
-            await this.state.storage.put(KEY_STATS, stats);
+
+            // Save System Root
+            await this.saveNode(systemRoot);
+            await this.state.storage.put(KEY_ROOT, systemRootId);
+            this.rootId = systemRootId;
+
+            // Mark version 1
+            await this.state.storage.put('system_version', 1);
+        } else {
+            // Already initialized v1+, strict checks or standard boot
+            if (!this.rootId) {
+                // Should not happen if version >= 1, but safeguard
+                await this.state.storage.put('system_version', 0); // Reset to retry migration/init
+                return this.ensureInitialized();
+            }
         }
     }
 
@@ -423,9 +463,29 @@ export class FileSystemDO {
                 // We need to know old size. existing.size.
                 const sizeDiff = meta.size - (existing as File).size;
                 await this.updateStats({ totalUsed: sizeDiff });
+
+                // Update Drive Usage
+                const driveId = await this.getDriveId(existing.id);
+                if (driveId) {
+                    // Check quota?
+                    const drive = await this.getNode(driveId) as Folder;
+                    if (drive && drive.quota && (drive.usage || 0) + sizeDiff > drive.quota) {
+                        throw new ClientError("Drive quota exceeded", 400);
+                    }
+                    await this.updateDriveUsage(driveId, sizeDiff);
+                }
             });
 
             return updatedFile;
+        }
+
+        // New File Quota Check
+        const driveId = await this.getDriveId(parentId);
+        if (driveId) {
+            const drive = await this.getNode(driveId) as Folder;
+            if (drive && drive.quota && (drive.usage || 0) + meta.size > drive.quota) {
+                throw new ClientError("Drive quota exceeded", 400);
+            }
         }
 
         const id = this.generateId();
@@ -446,6 +506,7 @@ export class FileSystemDO {
             await this.saveNode(newFile);
             await this.addChild(parentId, id);
             await this.updateStats({ fileCount: 1, totalUsed: meta.size });
+            if (driveId) await this.updateDriveUsage(driveId, meta.size);
         });
 
         return newFile;
@@ -533,6 +594,9 @@ export class FileSystemDO {
         } else {
             // File
             await this.updateStats({ fileCount: -1, totalUsed: -node.size });
+            // Update Drive Usage
+            const driveId = await this.getDriveId(id);
+            if (driveId) await this.updateDriveUsage(driveId, -node.size);
         }
 
         // Remove from parent list
@@ -542,6 +606,77 @@ export class FileSystemDO {
 
         // Delete self
         await this.state.storage.delete(`${KEY_PREFIX_NODE}${id}`);
+    }
+
+    // --- Drive Logic ---
+
+    async createDrive(letter: string, size: number): Promise<Folder> {
+        // Validation
+        if (!/^[A-Z]$/.test(letter)) throw new ClientError("Invalid drive letter (A-Z only)", 400);
+
+        const name = `Local Disk (${letter}:)`;
+        const siblings = await this.listFolder(this.rootId!);
+        if (siblings.some(s => s.name.includes(`(${letter}:)`))) {
+            throw new ClientError(`Drive ${letter}: already exists`, 409);
+        }
+
+        const id = this.generateId();
+        const drive: Folder = {
+            id,
+            parentId: this.rootId, // System Root
+            name,
+            createdAt: Date.now(),
+            type: 'drive',
+            quota: size,
+            usage: 0
+        };
+
+        await this.state.blockConcurrencyWhile(async () => {
+            await this.saveNode(drive);
+            await this.addChild(this.rootId!, id);
+            await this.updateStats({ folderCount: 1 });
+        });
+
+        return drive;
+    }
+
+    async deleteDrive(id: string) {
+        const node = await this.getNode(id) as Folder;
+        if (!node) throw new ClientError("Drive not found", 404);
+        if (node.type !== 'drive') throw new ClientError("Not a drive", 400);
+
+        const children = await this.getChildrenIds(id);
+        if (children.length > 0) throw new ClientError("Drive is not empty", 400);
+
+        await this.deleteNode(id);
+    }
+
+    // Helper: Find which drive a node belongs to
+    private async getDriveId(startNodeId: string): Promise<string | null> {
+        let currentId: string | null = startNodeId;
+        // Safety depth limit
+        let depth = 0;
+        while (currentId && depth < 50) {
+            if (currentId === this.rootId) return null; // Hit system root without seeing drive?
+
+            const node = await this.getNode(currentId);
+            if (!node) return null;
+
+            if ('type' in node && node.type === 'drive') {
+                return node.id;
+            }
+            currentId = node.parentId;
+            depth++;
+        }
+        return null;
+    }
+
+    private async updateDriveUsage(driveId: string, deltaBytes: number) {
+        const drive = await this.getNode(driveId) as Folder;
+        if (!drive || drive.type !== 'drive') return;
+
+        drive.usage = (drive.usage || 0) + deltaBytes;
+        await this.saveNode(drive);
     }
     // Use clear text password for now as requested (simple lock)
     async lockNode(id: string, password: string) {

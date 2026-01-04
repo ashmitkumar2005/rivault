@@ -7,7 +7,6 @@ export type APIFolder = {
     parentId: string;
     name: string;
     createdAt: number;
-    createdAt: number;
     locked?: boolean;
     type?: 'drive' | 'folder';
     quota?: number;
@@ -320,27 +319,30 @@ export async function verifyLock(nodeId: string, password: string): Promise<bool
         headers: { 'Content-Type': 'application/json', ...getHeaders() },
         body: JSON.stringify({ password })
     });
-    export async function createDrive(letter: string, size: number): Promise<APIFolder> {
-        const res = await fetch(`${API_URL}/drives`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...getHeaders() },
-            body: JSON.stringify({ letter, size })
-        });
-        if (!res.ok) {
-            const msg = await res.text();
-            throw new Error(msg || 'Failed to create drive');
-        }
-        return res.json();
-    }
+    return res.ok;
+}
 
-    export async function deleteDrive(id: string): Promise<void> {
-        const res = await fetch(`${API_URL}/drives/${id}`, {
-            method: 'DELETE',
-            headers: getHeaders()
-        });
-        if (!res.ok) {
-            const msg = await res.text();
-            throw new Error(msg || 'Failed to delete drive');
-        }
+export async function createDrive(letter: string, size: number): Promise<APIFolder> {
+    const res = await fetch(`${API_URL}/drives`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getHeaders() },
+        body: JSON.stringify({ letter, size })
+    });
+    if (!res.ok) {
+        const msg = await res.text();
+        throw new Error(msg || 'Failed to create drive');
     }
+    return res.json();
+}
+
+export async function deleteDrive(id: string): Promise<void> {
+    const res = await fetch(`${API_URL}/drives/${id}`, {
+        method: 'DELETE',
+        headers: getHeaders()
+    });
+    if (!res.ok) {
+        const msg = await res.text();
+        throw new Error(msg || 'Failed to delete drive');
+    }
+}
 

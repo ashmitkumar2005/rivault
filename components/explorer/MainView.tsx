@@ -8,7 +8,7 @@ import {
     ArrowUp, ArrowDown, FolderPlus, UploadCloud, MoreHorizontal, RefreshCw,
     Trash2, Edit2, FileText, Folder as FolderIcon, Music, Image as ImageIcon, Video, File as LucideFile, Search, ArrowLeft,
     CheckSquare, Square, Check, ChevronUp, ChevronDown, List, LayoutGrid,
-    FileCode, Archive, FileSpreadsheet, FileJson, FileType as FileTypeIcon, Lock
+    FileCode, Archive, FileSpreadsheet, FileJson, FileType as FileTypeIcon, Lock, HardDrive
 } from "lucide-react";
 import ContextMenu from "@/components/ui/ContextMenu";
 import Breadcrumb from "@/components/Breadcrumb";
@@ -1115,7 +1115,11 @@ export default function MainView() {
 
                                                 <div className="w-8 flex justify-center relative">
                                                     {isDir ? (
-                                                        <FolderIcon size={20} className="text-yellow-500/80 group-hover:text-yellow-400 transition-colors" />
+                                                        item.type === 'drive' ? (
+                                                            <HardDrive size={20} className="text-purple-400 group-hover:text-purple-300 transition-colors" />
+                                                        ) : (
+                                                            <FolderIcon size={20} className="text-yellow-500/80 group-hover:text-yellow-400 transition-colors" />
+                                                        )
                                                     ) : (
                                                         getFileIcon((item as APIFile).name)
                                                     )}
@@ -1128,7 +1132,7 @@ export default function MainView() {
                                                 <div className={`font-medium truncate ${isSel ? "text-blue-100" : isFocused ? "text-white" : "text-zinc-300 group-hover:text-white"}`}>
                                                     {item.name}
                                                 </div>
-                                                <div className="w-24 text-sm text-zinc-500 hidden md:block">{isDir ? 'Folder' : 'File'}</div>
+                                                <div className="w-24 text-sm text-zinc-500 hidden md:block">{isDir ? (item.type === 'drive' ? 'Drive' : 'Folder') : 'File'}</div>
                                                 <div className="w-20 md:w-24 text-sm text-zinc-500 text-right md:text-left">{isDir ? '-' : formatSize((item as APIFile).size)}</div>
                                                 <div className="w-32 text-sm text-zinc-600 group-hover:text-zinc-500 hidden md:block">
                                                     {isDir
@@ -1220,7 +1224,11 @@ export default function MainView() {
 
                                             <div className="mb-3 relative">
                                                 {isDir ? (
-                                                    <FolderIcon size={48} className="text-yellow-500/80 group-hover:text-yellow-400 transition-colors" />
+                                                    item.type === 'drive' ? (
+                                                        <HardDrive size={48} className="text-purple-400 group-hover:text-purple-300 transition-colors" />
+                                                    ) : (
+                                                        <FolderIcon size={48} className="text-yellow-500/80 group-hover:text-yellow-400 transition-colors" />
+                                                    )
                                                 ) : (
                                                     <div className="w-12 h-12 flex items-center justify-center">
                                                         {React.cloneElement(getFileIcon((item as APIFile).name) as any, { size: 40 })}

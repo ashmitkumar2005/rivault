@@ -35,7 +35,7 @@ const FileSystemContext = createContext<ExtendedContextType | undefined>(undefin
 export function FileSystemProvider({ children }: { children: ReactNode }) {
     const router = useRouter();
     // We store history as array of {id, name}. Initial is root.
-    const [breadcrumbs, setBreadcrumbs] = useState<{ id: string, name: string }[]>([{ id: 'root', name: 'Root' }]);
+    const [breadcrumbs, setBreadcrumbs] = useState<{ id: string, name: string }[]>([{ id: 'root', name: 'This PC' }]);
 
     // Derived currentPath from last breadcrumb
     const currentPath = breadcrumbs[breadcrumbs.length - 1].id;
@@ -147,8 +147,18 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
     // Actions
     const navigateTo = (folderId: string, folderName: string) => {
         if (folderId === currentPath) return;
+
         setFileTypeFilter("all"); // Reset filter on navigation
-        setBreadcrumbs(prev => [...prev, { id: folderId, name: folderName }]);
+
+        setBreadcrumbs(prev => {
+            // Check if we are navigating to an ancestor (e.g. via Sidebar or Breadcrumb click)
+            const existingIndex = prev.findIndex(b => b.id === folderId);
+            if (existingIndex !== -1) {
+                return prev.slice(0, existingIndex + 1);
+            }
+            // Otherwise, drilling down
+            return [...prev, { id: folderId, name: folderName }];
+        });
     };
 
     const navigateToBreadcrumb = (index: number) => {

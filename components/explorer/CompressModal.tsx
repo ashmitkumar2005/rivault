@@ -25,8 +25,8 @@ export default function CompressModal({ isOpen, onClose, onCompress, fileCount }
     };
 
     return createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md animate-fade-in">
-            <div className="w-full max-w-md glass-panel rounded-3xl border border-white/10 shadow-2xl animate-scale-in overflow-hidden">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md animate-fade-in">
+            <div className="w-full max-w-md bg-zinc-900/40 backdrop-blur-xl border border-white/10 ring-1 ring-white/5 rounded-3xl shadow-2xl animate-scale-in overflow-hidden">
                 <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between bg-white/5">
                     <div className="flex items-center space-x-3">
                         <div className="p-2 bg-amber-500/20 rounded-xl">
@@ -72,8 +72,8 @@ export default function CompressModal({ isOpen, onClose, onCompress, fileCount }
                                     type="button"
                                     onClick={() => setLevel(opt.val)}
                                     className={`px-3 py-2 rounded-xl text-xs font-medium border transition-all ${level === opt.val
-                                            ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
-                                            : 'bg-white/5 border-transparent text-zinc-400 hover:bg-white/10'
+                                        ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                                        : 'bg-white/5 border-transparent text-zinc-400 hover:bg-white/10'
                                         }`}
                                 >
                                     {opt.label}

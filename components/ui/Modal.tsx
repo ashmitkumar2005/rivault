@@ -30,12 +30,12 @@ export default function Modal({ isOpen, onClose, title, children, footer }: Moda
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             {/* Backdrop */}
             <div
-                className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
+                className="absolute inset-0 bg-black/40 backdrop-blur-md animate-fade-in"
                 onClick={onClose}
             />
 
-            {/* Content using existing glass-panel style if possible, or custom */}
-            <div className="relative w-full max-w-md bg-zinc-900/90 border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-scale-in flex flex-col max-h-[90vh]">
+            {/* Content using glass-panel style */}
+            <div className="relative w-full max-w-md bg-zinc-900/40 backdrop-blur-xl border border-white/10 ring-1 ring-white/5 rounded-2xl shadow-2xl overflow-hidden animate-scale-in flex flex-col max-h-[90vh]">
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-white/5">
                     <h3 className="text-lg font-bold text-white tracking-tight">{title}</h3>

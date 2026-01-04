@@ -38,12 +38,12 @@ export default function PreviewModal({ isOpen, onClose, title, children, onDownl
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-0 sm:p-4 md:p-8">
             {/* Backdrop with extreme blur and dark tint */}
             <div
-                className="absolute inset-0 bg-black/90 backdrop-blur-2xl animate-fade-in"
+                className="absolute inset-0 bg-black/60 backdrop-blur-xl animate-fade-in"
                 onClick={onClose}
             />
 
             {/* Content Container */}
-            <div className={`relative w-full h-full flex flex-col bg-zinc-950/50 border border-white/5 shadow-2xl overflow-hidden animate-scale-in transition-all duration-300 ${isFullScreen ? 'max-w-none max-h-none rounded-0' : 'max-w-6xl max-h-[90vh] rounded-3xl'}`}>
+            <div className={`relative w-full h-full flex flex-col bg-zinc-950/40 backdrop-blur-2xl border border-white/10 shadow-2xl overflow-hidden animate-scale-in transition-all duration-300 ${isFullScreen ? 'max-w-none max-h-none rounded-0' : 'max-w-6xl max-h-[90vh] rounded-3xl'}`}>
 
                 {/* Header - Glassy and floating */}
                 <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 bg-gradient-to-b from-black/80 to-transparent">

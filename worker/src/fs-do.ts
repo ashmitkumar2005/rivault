@@ -68,14 +68,21 @@ export class FileSystemDO {
 
             // --- Drive API ---
             if (method === 'POST' && path === '/api/drives') {
-                const body = await request.json() as { letter: string, size: number };
-                const drive = await this.createDrive(body.letter, body.size);
+                const body = await request.json() as { letter: string, size: number, hidden?: boolean };
+                const drive = await this.createDrive(body.letter, body.size, body.hidden);
                 return Response.json(drive);
             }
 
             if (method === 'DELETE' && path.startsWith('/api/drives/')) {
                 const id = path.split('/').pop()!;
                 await this.deleteDrive(id);
+                return new Response(null, { status: 200 });
+            }
+
+            if (method === 'POST' && path.startsWith('/api/drives/') && path.endsWith('/resize')) {
+                const id = path.split('/')[3];
+                const body = await request.json() as { size: number };
+                await this.resizeDrive(id, body.size);
                 return new Response(null, { status: 200 });
             }
 
@@ -610,7 +617,7 @@ export class FileSystemDO {
 
     // --- Drive Logic ---
 
-    async createDrive(letter: string, size: number): Promise<Folder> {
+    async createDrive(letter: string, size: number, hidden: boolean = false): Promise<Folder> {
         // Validation
         if (!/^[A-Z]$/.test(letter)) throw new ClientError("Invalid drive letter (A-Z only)", 400);
 
@@ -628,7 +635,8 @@ export class FileSystemDO {
             createdAt: Date.now(),
             type: 'drive',
             quota: size,
-            usage: 0
+            usage: 0,
+            hidden
         };
 
         await this.state.blockConcurrencyWhile(async () => {
@@ -649,6 +657,19 @@ export class FileSystemDO {
         if (children.length > 0) throw new ClientError("Drive is not empty", 400);
 
         await this.deleteNode(id);
+    }
+
+    async resizeDrive(id: string, newSize: number) {
+        const node = await this.getNode(id) as any; // Cast to any to access specific props
+        if (!node) throw new ClientError("Drive not found", 404);
+        if (node.type !== 'drive') throw new ClientError("Not a drive", 400);
+
+        if (newSize < node.usage) {
+            throw new ClientError(`New size (${newSize}) is smaller than current usage (${node.usage})`, 400);
+        }
+
+        node.quota = newSize;
+        await this.saveNode(node);
     }
 
     // Helper: Find which drive a node belongs to

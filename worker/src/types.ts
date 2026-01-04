@@ -15,11 +15,20 @@ export interface Folder {
     createdAt: number;
     locked?: boolean;
     lockPassword?: string;
+    type?: 'folder'; // Explicit discriminator
+}
 
-    // Drive Metadata
-    type?: 'drive' | 'folder'; // Defaults to 'folder'
-    quota?: number; // bytes
-    usage?: number; // bytes (tracked for drives)
+export interface Drive {
+    id: string;
+    parentId: string | null; // Usually system root
+    name: string;
+    createdAt: number;
+    type: 'drive';
+    quota: number;
+    usage: number;
+    locked?: boolean; // Drives could hypothetically be locked too? Let's keep it optional.
+    lockPassword?: string;
+    hidden?: boolean;
 }
 
 export interface File {

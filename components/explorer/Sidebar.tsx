@@ -1,19 +1,19 @@
 import React, { useState } from "react";
-import { APIFolder, listFolder, isFolder } from "@/lib/api";
+import { APIFolder, listFolder, isFolder, APIDrive, isDrive } from "@/lib/api";
 import { useFileSystem, FileType } from "@/components/providers/FileSystemProvider";
 import { ChevronRight, Folder, FolderOpen, HardDrive, PieChart, Image as ImageIcon, Video, Music, FileText, ChevronLeft, Plus, Server } from "lucide-react";
 import Image from "next/image";
 import AddDriveModal from "./AddDriveModal";
 
 // Recursive Node
-function FolderNode({ folder, depth = 0, isCollapsed }: { folder: APIFolder; depth?: number; isCollapsed: boolean }) {
+function FolderNode({ folder, depth = 0, isCollapsed }: { folder: APIFolder | APIDrive; depth?: number; isCollapsed: boolean }) {
     const { currentPath, navigateTo } = useFileSystem();
     const [isOpen, setIsOpen] = useState(depth === 0); // Open root by default
-    const [children, setChildren] = useState<APIFolder[]>([]);
+    const [children, setChildren] = useState<(APIFolder | APIDrive)[]>([]); // Only folders/drives
     const [loaded, setLoaded] = useState(false);
 
     const isActive = currentPath === folder.id;
-    const isDrive = folder.type === 'drive';
+    const isDriveNode = isDrive(folder);
     const isSystemRoot = depth === 0 && folder.id === 'root';
 
     const handleToggle = async (e: React.MouseEvent) => {
@@ -35,9 +35,15 @@ function FolderNode({ folder, depth = 0, isCollapsed }: { folder: APIFolder; dep
     };
 
     // Calculate usage percentage if drive
-    const usagePercent = isDrive && folder.quota && folder.usage
+    const usagePercent = folder.type === 'drive'
         ? Math.min(100, (folder.usage / folder.quota) * 100)
         : 0;
+
+    // Note: FolderNode receives APIFolder | APIDrive now if we updated listFolder types.
+    // Ideally we should make FolderNode accept APINode, or just Folder|Drive. 
+    // The previous prop def was { folder: APIFolder }. 
+    // If APIFolder excludes Drive now, this component will error if we pass a Drive.
+    // So we must update the Prop Type too.
 
     const formatSize = (bytes: number) => {
         if (bytes === 0) return '0 B';
@@ -73,10 +79,10 @@ function FolderNode({ folder, depth = 0, isCollapsed }: { folder: APIFolder; dep
                 )}
 
                 {/* Icon Logic */}
-                <span className={`transition-colors ${!isCollapsed ? 'md:mr-2.5' : ''} ${isActive ? "text-blue-400" : isDrive ? "text-purple-400" : isSystemRoot ? "text-zinc-100" : "text-yellow-500/80 group-hover:text-yellow-400"}`}>
+                <span className={`transition-colors ${!isCollapsed ? 'md:mr-2.5' : ''} ${isActive ? "text-blue-400" : isDriveNode ? "text-purple-400" : isSystemRoot ? "text-zinc-100" : "text-yellow-500/80 group-hover:text-yellow-400"}`}>
                     {isSystemRoot ? (
                         <Server size={20} className={`${!isCollapsed ? 'md:w-4 md:h-4' : ''}`} />
-                    ) : isDrive ? (
+                    ) : isDriveNode ? (
                         <HardDrive size={20} className={`${!isCollapsed ? 'md:w-4 md:h-4' : ''}`} />
                     ) : isOpen ? (
                         <FolderOpen size={20} className={`${!isCollapsed ? 'md:w-4 md:h-4' : ''}`} />
@@ -88,11 +94,11 @@ function FolderNode({ folder, depth = 0, isCollapsed }: { folder: APIFolder; dep
                 {!isCollapsed && (
                     <div className="hidden md:block flex-1 min-w-0">
                         <div className="truncate text-sm font-medium tracking-wide animate-fade-in">{folder.name}</div>
-                        {isDrive && folder.quota && (
+                        {isDriveNode && (
                             <div className="mt-1.5 w-full">
                                 <div className="flex justify-between text-[10px] text-zinc-500 mb-1">
-                                    <span>{formatSize(folder.usage || 0)} used</span>
-                                    <span>{formatSize(folder.quota)}</span>
+                                    <span>{formatSize((folder as APIDrive).usage)} used</span>
+                                    <span>{formatSize((folder as APIDrive).quota)}</span>
                                 </div>
                                 <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
                                     <div
@@ -125,12 +131,12 @@ export default function Sidebar() {
     const { storageUsage, fileTypeFilter, setFileTypeFilter } = useFileSystem();
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isAddDriveOpen, setIsAddDriveOpen] = useState(false);
-    const [drives, setDrives] = useState<APIFolder[]>([]);
+    const [drives, setDrives] = useState<APIDrive[]>([]); // Typed as APIDrive
 
     const fetchDrives = async () => {
         try {
             const nodes = await listFolder('root');
-            setDrives(nodes.filter(isFolder));
+            setDrives(nodes.filter(n => isDrive(n) && !n.hidden)); // Filter for drives and hide hidden ones
         } catch (e) {
             console.error("Failed to load drives", e);
         }

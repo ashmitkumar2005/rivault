@@ -8,11 +8,19 @@ export type APIFolder = {
     name: string;
     createdAt: number;
     locked?: boolean;
-    type?: 'drive' | 'folder';
-    quota?: number;
-    usage?: number;
-    size?: never;
-    mimeType?: never;
+    type?: 'folder';
+};
+
+export type APIDrive = {
+    id: string;
+    parentId: string;
+    name: string;
+    createdAt: number;
+    type: 'drive';
+    quota: number;
+    usage: number;
+    locked?: boolean;
+    hidden?: boolean;
 };
 
 export type APIFile = {
@@ -24,12 +32,17 @@ export type APIFile = {
     createdAt: number;
     updatedAt: number;
     locked?: boolean;
+    type: 'file'; // Discriminator
 };
 
-export type APINode = APIFolder | APIFile;
+export type APINode = APIFolder | APIFile | APIDrive;
 
 export function isFolder(node: any): node is APIFolder {
-    return !('size' in node);
+    return node && !('size' in node) && (!node.type || node.type === 'folder');
+}
+
+export function isDrive(node: any): node is APIDrive {
+    return node && node.type === 'drive';
 }
 
 function getHeaders() {
@@ -322,11 +335,11 @@ export async function verifyLock(nodeId: string, password: string): Promise<bool
     return res.ok;
 }
 
-export async function createDrive(letter: string, size: number): Promise<APIFolder> {
+export async function createDrive(letter: string, size: number, hidden: boolean = false): Promise<APIDrive> {
     const res = await fetch(`${API_URL}/drives`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getHeaders() },
-        body: JSON.stringify({ letter, size })
+        body: JSON.stringify({ letter, size, hidden })
     });
     if (!res.ok) {
         const msg = await res.text();
@@ -343,6 +356,18 @@ export async function deleteDrive(id: string): Promise<void> {
     if (!res.ok) {
         const msg = await res.text();
         throw new Error(msg || 'Failed to delete drive');
+    }
+}
+
+export async function resizeDrive(id: string, size: number): Promise<void> {
+    const res = await fetch(`${API_URL}/drives/${id}/resize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getHeaders() },
+        body: JSON.stringify({ size })
+    });
+    if (!res.ok) {
+        const msg = await res.text();
+        throw new Error(msg || 'Failed to resize drive');
     }
 }
 

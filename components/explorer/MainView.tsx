@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useFileSystem } from "@/components/providers/FileSystemProvider";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { APIFile, APIFolder, APINode, isFolder, uploadFile, createFolder, getDownloadUrl, moveNode, downloadAndDecryptFile, lockNode, unlockNode, verifyLock } from "@/lib/api";
+import { APIFile, APIFolder, APINode, APIDrive, isFolder, isDrive, uploadFile, createFolder, getDownloadUrl, moveNode, downloadAndDecryptFile, lockNode, unlockNode, verifyLock, resizeDrive, listFolder } from "@/lib/api";
 import {
     ArrowUp, ArrowDown, FolderPlus, UploadCloud, MoreHorizontal, RefreshCw,
     Trash2, Edit2, FileText, Folder as FolderIcon, Music, Image as ImageIcon, Video, File as LucideFile, Search, ArrowLeft,
@@ -74,8 +74,11 @@ export default function MainView() {
     const [previewItem, setPreviewItem] = useState<{ file: APIFile, password?: string } | null>(null);
     const [compressModal, setCompressModal] = useState<{ isOpen: boolean, items: APIFile[] }>({ isOpen: false, items: [] });
     const [textEditor, setTextEditor] = useState<{ isOpen: boolean, file: APIFile | null, content: string }>({ isOpen: false, file: null, content: '' });
-    const [lockModal, setLockModal] = useState<{ isOpen: boolean, item: APIFile | APIFolder | null }>({ isOpen: false, item: null });
-    const [unlockModal, setUnlockModal] = useState<{ isOpen: boolean, item: APIFile | APIFolder | null, action: 'open' | 'download' | 'delete' | 'unlock' }>({ isOpen: false, item: null, action: 'open' });
+    const [lockModal, setLockModal] = useState<{ isOpen: boolean, item: APINode | null }>({ isOpen: false, item: null });
+    const [unlockModal, setUnlockModal] = useState<{ isOpen: boolean, item: APINode | null, action: 'open' | 'download' | 'delete' | 'unlock' }>({ isOpen: false, item: null, action: 'open' });
+    const [resizeModal, setResizeModal] = useState<{ isOpen: boolean, drive: APIDrive | null }>({ isOpen: false, drive: null });
+
+
 
     // Box Selection State
     const [isBoxSelecting, setIsBoxSelecting] = useState(false);
@@ -90,6 +93,40 @@ export default function MainView() {
         setFocusedId(null);
         setIsSelectMode(false);
     }, [currentPath]);
+
+    // Keys: Alt+P for Secret Access
+    // GTA Style Cheat Code
+    useEffect(() => {
+        let buffer: string[] = [];
+        const SECRET_CODE = ['0', '3', '2', '9'];
+
+        const handleGlobalKey = async (e: KeyboardEvent) => {
+            // Ignore if typing in input/textarea
+            if ((e.target as HTMLElement).tagName.match(/INPUT|TEXTAREA|SELECT/)) return;
+
+            buffer.push(e.key);
+            if (buffer.length > SECRET_CODE.length) {
+                buffer.shift();
+            }
+
+            if (buffer.join('') === SECRET_CODE.join('')) {
+                // Code Matched!
+                try {
+                    const rootNodes = await listFolder('root'); // List root directly
+                    const hiddenDrive = rootNodes.find(n => isDrive(n) && n.hidden);
+                    if (hiddenDrive) {
+                        navigateTo(hiddenDrive.id, hiddenDrive.name);
+                        buffer = []; // Reset
+                    }
+                } catch (err) {
+                    console.error("Failed to find hidden drive", err);
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleGlobalKey);
+        return () => window.removeEventListener('keydown', handleGlobalKey);
+    }, [navigateTo]);
 
     // Keyboard Shortcuts
     useEffect(() => {
@@ -118,6 +155,12 @@ export default function MainView() {
     // Filter and sort items
     const filteredItems = useMemo(() => {
         let res = items;
+
+        // 0. Hidden Drive Filter
+        res = res.filter(item => {
+            if (isDrive(item) && item.hidden) return false;
+            return true;
+        });
 
         // 1. Type Filter
         if (fileTypeFilter !== 'all') {
@@ -167,7 +210,7 @@ export default function MainView() {
     }, [items, searchQuery, fileTypeFilter, sortConfig]);
 
     // Context Menu State
-    const [contextMenu, setContextMenu] = useState<{ x: number, y: number, item?: APIFile | APIFolder, type?: 'item' | 'background' } | null>(null);
+    const [contextMenu, setContextMenu] = useState<{ x: number, y: number, item?: APINode, type?: 'item' | 'background' } | null>(null);
 
     const onBackgroundContextMenu = (e: React.MouseEvent) => {
         e.preventDefault();
@@ -280,7 +323,7 @@ export default function MainView() {
         }
     };
 
-    const onDoubleClick = async (item: APIFile | APIFolder) => {
+    const onDoubleClick = async (item: APINode) => {
         if (isSelectMode) return;
 
         if (item.locked) {
@@ -288,7 +331,7 @@ export default function MainView() {
             return;
         }
 
-        if (isFolder(item)) {
+        if (isFolder(item) || isDrive(item)) {
             navigateTo(item.id, item.name);
         } else {
             // Check if text file to open editor
@@ -335,7 +378,7 @@ export default function MainView() {
         }
     };
 
-    const onRightClick = (e: React.MouseEvent, item: APIFile | APIFolder) => {
+    const onRightClick = (e: React.MouseEvent, item: APINode) => {
         e.preventDefault();
         e.stopPropagation(); // Prevent background menu from appearing
         // If not selected, select it? Or just focus it?
@@ -403,8 +446,20 @@ export default function MainView() {
 
     const confirmRename = async (newName: string) => {
         try {
-            await handleRename(renameModal.id, newName);
+            let finalName = newName;
+            // Check if it's a drive to safeguard the letter
+            const item = items.find(i => i.id === renameModal.id);
+            if (item && isDrive(item)) {
+                // Extract existing letter suffix e.g. " (C:)"
+                const match = item.name.match(/ \([A-Z]:\)$/);
+                if (match) {
+                    finalName = newName + match[0];
+                }
+            }
+
+            await handleRename(renameModal.id, finalName);
             refresh();
+            setRenameModal({ ...renameModal, isOpen: false });
         } catch (e: any) {
             setAlertModal({ isOpen: true, title: 'Rename Failed', message: e.message });
         }
@@ -621,7 +676,24 @@ export default function MainView() {
         }
     };
 
-    const handleContextAction = async (action: string, item?: APIFile | APIFolder) => {
+    const handleResizeSubmit = async (value: string) => {
+        if (!resizeModal.drive) return;
+        const size = parseInt(value) * 1024 * 1024 * 1024; // Convert GB to Bytes
+        if (isNaN(size) || size <= 0) {
+            setAlertModal({ isOpen: true, title: 'Invalid Size', message: 'Please enter a valid positive number for size in GB.' });
+            return;
+        }
+
+        try {
+            await resizeDrive(resizeModal.drive.id, size);
+            refresh();
+            setResizeModal({ isOpen: false, drive: null });
+        } catch (e: any) {
+            setAlertModal({ isOpen: true, title: 'Resize Failed', message: e.message });
+        }
+    };
+
+    const handleContextAction = async (action: string, item?: APINode) => {
         setContextMenu(null);
 
         switch (action) {
@@ -647,6 +719,45 @@ export default function MainView() {
                 break;
             case 'compress':
                 if (item && !isFolder(item)) handleCompress(item as APIFile);
+                break;
+            case 'resize':
+                if (item && isDrive(item)) {
+                    setResizeModal({ isOpen: true, drive: item });
+                }
+                break;
+            case 'rename':
+                if (item) {
+                    let initialName = item.name;
+                    if (isDrive(item)) {
+                        // Strip " (C:)" for editing
+                        initialName = item.name.replace(/ \([A-Z]:\)$/, '');
+                    }
+                    setRenameModal({ isOpen: true, id: item.id, name: initialName });
+                }
+                break;
+            case 'delete':
+                if (item?.locked) {
+                    setUnlockModal({ isOpen: true, item: item, action: 'delete' });
+                    return;
+                }
+                setDeleteModal({ isOpen: true, count: 1 });
+                // If single item delete context, we should probably set selectedIds to it or handle singly?
+                // `initiateDelete` handles multiple. `confirmDelete` iterates `selectedIds`.
+                // If we right-clicked an item, we should have made it focused or selected?
+                // Usually right-click select it.
+                // Let's ensure single item deletion works if context menu logic relies on `selectedIds`.
+                // Actually, `onRightClick` sets context menu item. `confirmDelete` reads `selectedIds`.
+                // We must select it if not selected.
+                // Or just use `handleDelete(item.id)`.
+                // But `setDeleteModal` just sets open state. `confirmDelete` does logic.
+                // If `selectedIds` is empty, `confirmDelete` does nothing.
+                // FIX: If we right click an unselected item, we should probably select it imperatively here?
+                // Or `onRightClick` does it? Currently `onRightClick` just sets context menu.
+                // Let's fix this minor UX detail separately.
+                // For now, simpler: Just set selectedIds to [item.id] if not present?
+                if (item && !selectedIds.has(item.id)) {
+                    setSelectedIds(new Set([item.id]));
+                }
                 break;
             case 'rename':
                 if (item) {
@@ -822,7 +933,7 @@ export default function MainView() {
 
     // --- Drag & Drop ---
 
-    const handleDragStart = (e: React.DragEvent, item: APIFile | APIFolder) => {
+    const handleDragStart = (e: React.DragEvent, item: APINode) => {
         // Auto select on drag? Maybe not if we want strict separation
         if (!selectedIds.has(item.id)) {
             // If dragging an unselected item, select it temporarily?
@@ -1053,7 +1164,7 @@ export default function MainView() {
                                     {filteredItems.map(item => {
                                         const isSel = selectedIds.has(item.id);
                                         const isFocused = focusedId === item.id;
-                                        const isDir = isFolder(item);
+                                        const isDir = isFolder(item) || isDrive(item);
                                         return (
                                             <div
                                                 key={item.id}
@@ -1115,7 +1226,7 @@ export default function MainView() {
 
                                                 <div className="w-8 flex justify-center relative">
                                                     {isDir ? (
-                                                        item.type === 'drive' ? (
+                                                        isDrive(item) ? (
                                                             <HardDrive size={20} className="text-purple-400 group-hover:text-purple-300 transition-colors" />
                                                         ) : (
                                                             <FolderIcon size={20} className="text-yellow-500/80 group-hover:text-yellow-400 transition-colors" />
@@ -1132,10 +1243,10 @@ export default function MainView() {
                                                 <div className={`font-medium truncate ${isSel ? "text-blue-100" : isFocused ? "text-white" : "text-zinc-300 group-hover:text-white"}`}>
                                                     {item.name}
                                                 </div>
-                                                <div className="w-24 text-sm text-zinc-500 hidden md:block">{isDir ? (item.type === 'drive' ? 'Drive' : 'Folder') : 'File'}</div>
+                                                <div className="w-24 text-sm text-zinc-500 hidden md:block">{isDir ? (isDrive(item) ? 'Drive' : 'Folder') : 'File'}</div>
                                                 <div className="w-20 md:w-24 text-sm text-zinc-500 text-right md:text-left">
-                                                    {item.type === 'drive' && item.quota
-                                                        ? `${formatSize(item.usage || 0)} used`
+                                                    {isDrive(item)
+                                                        ? `${formatSize(item.usage)} used`
                                                         : isDir ? '-' : formatSize((item as APIFile).size)
                                                     }
                                                 </div>
@@ -1172,7 +1283,7 @@ export default function MainView() {
                                 {filteredItems.map(item => {
                                     const isSel = selectedIds.has(item.id);
                                     const isFocused = focusedId === item.id;
-                                    const isDir = isFolder(item);
+                                    const isDir = isFolder(item) || isDrive(item);
                                     return (
                                         <div
                                             key={item.id}
@@ -1229,7 +1340,7 @@ export default function MainView() {
 
                                             <div className="mb-3 relative">
                                                 {isDir ? (
-                                                    item.type === 'drive' ? (
+                                                    isDrive(item) ? (
                                                         <HardDrive size={48} className="text-purple-400 group-hover:text-purple-300 transition-colors" />
                                                     ) : (
                                                         <FolderIcon size={48} className="text-yellow-500/80 group-hover:text-yellow-400 transition-colors" />
@@ -1250,10 +1361,10 @@ export default function MainView() {
                                                 {item.name}
                                             </div>
                                             <div className="text-[10px] text-zinc-500 mt-1 w-full">
-                                                {item.type === 'drive' && item.quota ? (
+                                                {isDrive(item) ? (
                                                     <div className="w-full px-2">
                                                         <div className="flex justify-between text-[9px] mb-0.5 opacity-80">
-                                                            <span>{formatSize(item.usage || 0)}</span>
+                                                            <span>{formatSize(item.usage)}</span>
                                                             <span>{formatSize(item.quota)}</span>
                                                         </div>
                                                         <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
@@ -1329,6 +1440,19 @@ export default function MainView() {
                 placeholder={createFileType === 'txt' ? "filename" : "filename.txt"}
                 submitLabel={createFileType === 'txt' ? "Create Text File" : "Create File"}
             />
+            {/* Resize Drive */}
+            <InputModal
+                isOpen={resizeModal.isOpen}
+                onClose={() => setResizeModal({ isOpen: false, drive: null })}
+                onSubmit={handleResizeSubmit}
+                title="Resize Drive"
+                message={`Enter new size in GB for ${resizeModal.drive?.name}. (Current: ${formatSize(resizeModal.drive?.quota || 0)})`}
+                placeholder="Size in GB (e.g., 50)"
+                submitLabel="Resize"
+                type="number"
+                initialValue={resizeModal.drive ? Math.round(resizeModal.drive.quota / (1024 * 1024 * 1024)).toString() : ""}
+            />
+
 
             {/* Rename */}
             <InputModal
@@ -1349,7 +1473,10 @@ export default function MainView() {
                 message={`Are you sure you want to delete ${deleteModal.count} item(s)? This action cannot be undone.`}
                 confirmLabel="Delete"
                 isDestructive={true}
+
             />
+
+
 
             {/* Alert / Error */}
             <Modal

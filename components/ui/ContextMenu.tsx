@@ -1,19 +1,19 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
-import { APIFile, APIFolder, isFolder } from "@/lib/api";
+import { APINode, isFolder, isDrive } from "@/lib/api";
 import {
     FolderOpen, Download, Edit2, Trash2, ExternalLink, Link, Eye, Archive, FileArchive,
-    Plus, FolderPlus, FilePlus, RefreshCw, Info, FileText, Lock, Unlock
+    Plus, FolderPlus, FilePlus, RefreshCw, Info, FileText, Lock, Unlock, HardDrive, Maximize2
 } from "lucide-react";
 
 interface ContextMenuProps {
     x: number;
     y: number;
-    item?: APIFile | APIFolder; // Now optional for background menu
+    item?: APINode; // Now optional for background menu
     type?: 'item' | 'background';
     onClose: () => void;
-    onAction: (action: string, item?: APIFile | APIFolder) => void;
+    onAction: (action: string, item?: APINode) => void;
 }
 
 export default function ContextMenu({ x, y, item, type = 'item', onClose, onAction }: ContextMenuProps) {
@@ -105,7 +105,7 @@ export default function ContextMenu({ x, y, item, type = 'item', onClose, onActi
     }
 
     if (!item) return null;
-    const isDir = isFolder(item);
+    const isDir = isFolder(item) || isDrive(item);
 
     return (
         <div
@@ -116,7 +116,7 @@ export default function ContextMenu({ x, y, item, type = 'item', onClose, onActi
         >
             <div className="px-3 py-2 border-b border-white/5 mb-1 bg-white/5">
                 <p className="text-xs font-semibold text-zinc-300 truncate max-w-[180px]">{item.name}</p>
-                <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{isDir ? 'Folder' : 'File'}</p>
+                <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{isDrive(item) ? 'Drive' : isDir ? 'Folder' : 'File'}</p>
             </div>
 
             <button
@@ -195,6 +195,16 @@ export default function ContextMenu({ x, y, item, type = 'item', onClose, onActi
             }
 
             <div className="h-px bg-white/5 my-1 mx-2" />
+
+            {isDrive(item) && (
+                <button
+                    onClick={() => onAction('resize', item)}
+                    className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-200 hover:bg-white/10 rounded-lg transition-colors group"
+                >
+                    <FolderOpen size={16} className="text-zinc-400 group-hover:text-zinc-200" />
+                    <span>Resize</span>
+                </button>
+            )}
 
             <button
                 onClick={() => onAction('rename', item)}

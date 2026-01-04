@@ -11,6 +11,7 @@ interface AddDriveModalProps {
 export default function AddDriveModal({ isOpen, onClose, onSuccess }: AddDriveModalProps) {
     const [letter, setLetter] = useState('D');
     const [sizeGB, setSizeGB] = useState(10);
+    const [isHidden, setIsHidden] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -20,7 +21,7 @@ export default function AddDriveModal({ isOpen, onClose, onSuccess }: AddDriveMo
         setIsSubmitting(true);
 
         try {
-            await createDrive(letter.toUpperCase(), sizeGB * 1024 * 1024 * 1024);
+            await createDrive(letter.toUpperCase(), sizeGB * 1024 * 1024 * 1024, isHidden);
             onSuccess();
             onClose();
         } catch (err: any) {
@@ -71,6 +72,18 @@ export default function AddDriveModal({ isOpen, onClose, onSuccess }: AddDriveMo
                             onChange={(e) => setSizeGB(parseInt(e.target.value) || 0)}
                             className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500/50 transition-colors"
                         />
+                    </div>
+
+                    <div>
+                        <label className="flex items-center space-x-2 cursor-pointer group">
+                            <input
+                                type="checkbox"
+                                checked={isHidden}
+                                onChange={e => setIsHidden(e.target.checked)}
+                                className="w-4 h-4 rounded border-gray-600 bg-black/20 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 focus:bg-blue-600/20"
+                            />
+                            <span className="text-sm text-zinc-400 group-hover:text-zinc-300 transition-colors select-none">Hidden Drive</span>
+                        </label>
                     </div>
 
                     {error && (

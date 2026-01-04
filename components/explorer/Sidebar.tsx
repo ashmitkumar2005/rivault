@@ -6,7 +6,7 @@ import Image from "next/image";
 import AddDriveModal from "./AddDriveModal";
 
 // Recursive Node
-function FolderNode({ folder, depth = 0, isCollapsed }: { folder: APIFolder | APIDrive; depth?: number; isCollapsed: boolean }) {
+function FolderNode({ folder, pathFromRoot, depth = 0, isCollapsed }: { folder: APIFolder | APIDrive; pathFromRoot: { id: string, name: string }[]; depth?: number; isCollapsed: boolean }) {
     const { currentPath, navigateTo } = useFileSystem();
     const [isOpen, setIsOpen] = useState(depth === 0); // Open root by default
     const [children, setChildren] = useState<(APIFolder | APIDrive)[]>([]); // Only folders/drives
@@ -15,6 +15,9 @@ function FolderNode({ folder, depth = 0, isCollapsed }: { folder: APIFolder | AP
     const isActive = currentPath === folder.id;
     const isDriveNode = isDrive(folder);
     const isSystemRoot = depth === 0 && folder.id === 'root';
+
+    // Construct own path
+    const myPath = [...pathFromRoot, { id: folder.id, name: folder.name }];
 
     const handleToggle = async (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -31,19 +34,13 @@ function FolderNode({ folder, depth = 0, isCollapsed }: { folder: APIFolder | AP
     };
 
     const handleClick = () => {
-        navigateTo(folder.id, folder.name);
+        navigateTo(folder.id, folder.name, myPath);
     };
 
     // Calculate usage percentage if drive
     const usagePercent = folder.type === 'drive'
         ? Math.min(100, (folder.usage / folder.quota) * 100)
         : 0;
-
-    // Note: FolderNode receives APIFolder | APIDrive now if we updated listFolder types.
-    // Ideally we should make FolderNode accept APINode, or just Folder|Drive. 
-    // The previous prop def was { folder: APIFolder }. 
-    // If APIFolder excludes Drive now, this component will error if we pass a Drive.
-    // So we must update the Prop Type too.
 
     const formatSize = (bytes: number) => {
         if (bytes === 0) return '0 B';
@@ -119,7 +116,13 @@ function FolderNode({ folder, depth = 0, isCollapsed }: { folder: APIFolder | AP
                         style={{ left: `${depth * 12 + 21}px` }}
                     />
                     {children.map(child => (
-                        <FolderNode key={child.id} folder={child} depth={depth + 1} isCollapsed={isCollapsed} />
+                        <FolderNode
+                            key={child.id}
+                            folder={child}
+                            pathFromRoot={myPath}
+                            depth={depth + 1}
+                            isCollapsed={isCollapsed}
+                        />
                     ))}
                 </div>
             )}
@@ -136,7 +139,7 @@ export default function Sidebar() {
     const fetchDrives = async () => {
         try {
             const nodes = await listFolder('root');
-            setDrives(nodes.filter(n => isDrive(n) && !n.hidden)); // Filter for drives and hide hidden ones
+            setDrives(nodes.filter(isDrive).filter(n => !n.hidden)); // Filter for drives and hide hidden ones
         } catch (e) {
             console.error("Failed to load drives", e);
         }
@@ -218,7 +221,12 @@ export default function Sidebar() {
                 </div>
 
                 {drives.map(drive => (
-                    <FolderNode key={drive.id} folder={drive} isCollapsed={isCollapsed} />
+                    <FolderNode
+                        key={drive.id}
+                        folder={drive}
+                        pathFromRoot={[{ id: 'root', name: 'This PC' }]}
+                        isCollapsed={isCollapsed}
+                    />
                 ))}
             </div>
 

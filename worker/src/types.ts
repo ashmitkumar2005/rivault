@@ -29,6 +29,7 @@ export interface Drive {
     locked?: boolean; // Drives could hypothetically be locked too? Let's keep it optional.
     lockPassword?: string;
     hidden?: boolean;
+    accessCode?: string; // Custom code for hidden drives
 }
 
 export interface File {

@@ -21,6 +21,7 @@ export type APIDrive = {
     usage: number;
     locked?: boolean;
     hidden?: boolean;
+    accessCode?: string;
 };
 
 export type APIFile = {
@@ -335,11 +336,11 @@ export async function verifyLock(nodeId: string, password: string): Promise<bool
     return res.ok;
 }
 
-export async function createDrive(letter: string, size: number, hidden: boolean = false): Promise<APIDrive> {
+export async function createDrive(letter: string, size: number, hidden: boolean = false, accessCode?: string): Promise<APIDrive> {
     const res = await fetch(`${API_URL}/drives`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getHeaders() },
-        body: JSON.stringify({ letter, size, hidden })
+        body: JSON.stringify({ letter, size, hidden, accessCode })
     });
     if (!res.ok) {
         const msg = await res.text();

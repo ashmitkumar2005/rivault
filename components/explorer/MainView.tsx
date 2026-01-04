@@ -94,33 +94,46 @@ export default function MainView() {
         setIsSelectMode(false);
     }, [currentPath]);
 
-    // Keys: Alt+P for Secret Access
-    // GTA Style Cheat Code
+    // Dynamic Hidden Drive Listener
     useEffect(() => {
         let buffer: string[] = [];
-        const SECRET_CODE = ['0', '3', '2', '9'];
 
         const handleGlobalKey = async (e: KeyboardEvent) => {
             // Ignore if typing in input/textarea
             if ((e.target as HTMLElement).tagName.match(/INPUT|TEXTAREA|SELECT/)) return;
 
             buffer.push(e.key);
-            if (buffer.length > SECRET_CODE.length) {
+            if (buffer.length > 20) { // Max code length buffer
                 buffer.shift();
             }
 
-            if (buffer.join('') === SECRET_CODE.join('')) {
-                // Code Matched!
-                try {
-                    const rootNodes = await listFolder('root'); // List root directly
-                    const hiddenDrive = rootNodes.find(n => isDrive(n) && n.hidden);
-                    if (hiddenDrive) {
-                        navigateTo(hiddenDrive.id, hiddenDrive.name);
-                        buffer = []; // Reset
+            const sequence = buffer.join('');
+
+            try {
+                const rootNodes = await listFolder('root');
+                const hiddenDrives = rootNodes.filter(n => isDrive(n) && n.hidden);
+
+                // Check for custom codes
+                for (const drive of hiddenDrives) {
+                    if (drive.accessCode && sequence.endsWith(drive.accessCode)) {
+                        navigateTo(drive.id, drive.name);
+                        buffer = [];
+                        return;
                     }
-                } catch (err) {
-                    console.error("Failed to find hidden drive", err);
                 }
+
+                // Fallback for legacy '0329' if typed AND there is a hidden drive without a code
+                if (sequence.endsWith('0329')) {
+                    // Find a hidden drive that has NO access code set (legacy)
+                    const legacyHidden = hiddenDrives.find(n => !n.accessCode);
+                    if (legacyHidden) {
+                        navigateTo(legacyHidden.id, legacyHidden.name);
+                        buffer = [];
+                    }
+                }
+
+            } catch (err) {
+                // Silent fail
             }
         };
 

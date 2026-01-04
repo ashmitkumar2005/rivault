@@ -12,6 +12,7 @@ export default function AddDriveModal({ isOpen, onClose, onSuccess }: AddDriveMo
     const [letter, setLetter] = useState('D');
     const [sizeGB, setSizeGB] = useState(10);
     const [isHidden, setIsHidden] = useState(false);
+    const [accessCode, setAccessCode] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -21,7 +22,10 @@ export default function AddDriveModal({ isOpen, onClose, onSuccess }: AddDriveMo
         setIsSubmitting(true);
 
         try {
-            await createDrive(letter.toUpperCase(), sizeGB * 1024 * 1024 * 1024, isHidden);
+            if (isHidden && !accessCode) {
+                throw new Error("Access code is required for hidden drives");
+            }
+            await createDrive(letter.toUpperCase(), sizeGB * 1024 * 1024 * 1024, isHidden, accessCode);
             onSuccess();
             onClose();
         } catch (err: any) {
@@ -85,6 +89,21 @@ export default function AddDriveModal({ isOpen, onClose, onSuccess }: AddDriveMo
                             <span className="text-sm text-zinc-400 group-hover:text-zinc-300 transition-colors select-none">Hidden Drive</span>
                         </label>
                     </div>
+
+                    {isHidden && (
+                        <div className="animate-fade-in-down">
+                            <label className="block text-xs font-medium text-zinc-400 mb-1.5 uppercase">Secret Access Code</label>
+                            <input
+                                type="text"
+                                value={accessCode}
+                                onChange={(e) => setAccessCode(e.target.value)}
+                                placeholder="e.g. 0329"
+                                className="w-full bg-black/20 border border-blue-500/30 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 transition-colors placeholder-zinc-600"
+                                required
+                            />
+                            <p className="text-[10px] text-zinc-500 mt-1">Type this code blindly anywhere to open the drive.</p>
+                        </div>
+                    )}
 
                     {error && (
                         <div className="text-sm text-red-400 bg-red-400/10 border border-red-400/20 p-3 rounded-lg">

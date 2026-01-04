@@ -15,13 +15,12 @@ interface ExtendedContextType {
     isLoading: boolean;
     error: string | null;
     refresh: () => void;
-
-    navigateTo: (folderId: string, folderName: string) => void; // Updated signature
-    navigateToBreadcrumb: (index: number) => void; // NEW
+    navigateTo: (folderId: string, folderName: string, absolutePath?: { id: string, name: string }[]) => void;
+    navigateToBreadcrumb: (index: number) => void;
     goUp: () => void;
     toggleViewMode: () => void;
-    fileTypeFilter: FileType; // NEW
-    setFileTypeFilter: (type: FileType) => void; // NEW
+    fileTypeFilter: FileType;
+    setFileTypeFilter: (type: FileType) => void;
 
     // CRUD wrappers
     handleDelete: (id: string) => Promise<void>;
@@ -145,20 +144,24 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
     }, [refresh]);
 
     // Actions
-    const navigateTo = (folderId: string, folderName: string) => {
-        if (folderId === currentPath) return;
+    const navigateTo = (folderId: string, folderName: string, absolutePath?: { id: string, name: string }[]) => {
+        if (folderId === currentPath && !absolutePath) return; // If path provided, we might force update? No, just check ID.
 
         setFileTypeFilter("all"); // Reset filter on navigation
 
-        setBreadcrumbs(prev => {
-            // Check if we are navigating to an ancestor (e.g. via Sidebar or Breadcrumb click)
-            const existingIndex = prev.findIndex(b => b.id === folderId);
-            if (existingIndex !== -1) {
-                return prev.slice(0, existingIndex + 1);
-            }
-            // Otherwise, drilling down
-            return [...prev, { id: folderId, name: folderName }];
-        });
+        if (absolutePath) {
+            setBreadcrumbs(absolutePath);
+        } else {
+            setBreadcrumbs(prev => {
+                // Check if we are navigating to an ancestor (e.g. via Breadcrumb click)
+                const existingIndex = prev.findIndex(b => b.id === folderId);
+                if (existingIndex !== -1) {
+                    return prev.slice(0, existingIndex + 1);
+                }
+                // Otherwise, drilling down
+                return [...prev, { id: folderId, name: folderName }];
+            });
+        }
     };
 
     const navigateToBreadcrumb = (index: number) => {

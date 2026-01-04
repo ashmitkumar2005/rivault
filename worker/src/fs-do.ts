@@ -68,8 +68,8 @@ export class FileSystemDO {
 
             // --- Drive API ---
             if (method === 'POST' && path === '/api/drives') {
-                const body = await request.json() as { letter: string, size: number, hidden?: boolean };
-                const drive = await this.createDrive(body.letter, body.size, body.hidden);
+                const body = await request.json() as { letter: string, size: number, hidden?: boolean, accessCode?: string };
+                const drive = await this.createDrive(body.letter, body.size, body.hidden, body.accessCode);
                 return Response.json(drive);
             }
 
@@ -617,7 +617,7 @@ export class FileSystemDO {
 
     // --- Drive Logic ---
 
-    async createDrive(letter: string, size: number, hidden: boolean = false): Promise<Folder> {
+    async createDrive(letter: string, size: number, hidden: boolean = false, accessCode?: string): Promise<Folder> {
         // Validation
         if (!/^[A-Z]$/.test(letter)) throw new ClientError("Invalid drive letter (A-Z only)", 400);
 
@@ -636,7 +636,8 @@ export class FileSystemDO {
             type: 'drive',
             quota: size,
             usage: 0,
-            hidden
+            hidden,
+            accessCode
         };
 
         await this.state.blockConcurrencyWhile(async () => {

@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
-import { X, Save, FileText, RotateCcw, RotateCw, AlignLeft, WrapText, ZoomIn, ZoomOut, Search } from 'lucide-react';
+import { X, Save, FileText, RotateCcw, RotateCw, AlignLeft, WrapText, ZoomIn, ZoomOut, Search, Check } from 'lucide-react';
 import ConfirmModal from '../ui/ConfirmModal'; // Ensure this path is correct
 import Image from 'next/image';
 
@@ -17,6 +17,7 @@ export function TextEditorModal({ isOpen, onClose, onSave, fileName, initialCont
     const monacoRef = useRef<any>(null); // Store monaco instance
     const [isSaving, setIsSaving] = useState(false);
     const [isDirty, setIsDirty] = useState(false);
+    const [isSaved, setIsSaved] = useState(false); // Track if successfully saved
     const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
     // Editor State
@@ -74,12 +75,17 @@ export function TextEditorModal({ isOpen, onClose, onSave, fileName, initialCont
             const value = editorRef.current.getValue();
             await onSave(value);
             setIsDirty(false);
+            setIsSaved(true); // Mark as saved
         } catch (error) {
             console.error("Failed to save:", error);
-            // Optionally trigger an alert here or let parent handle it
         } finally {
             setIsSaving(false);
         }
+    };
+
+    const handleContentChange = () => {
+        if (!isDirty) setIsDirty(true);
+        if (isSaved) setIsSaved(false); // Revert "Saved" state on edit
     };
 
     const handleClose = () => {
@@ -142,11 +148,16 @@ export function TextEditorModal({ isOpen, onClose, onSave, fileName, initialCont
                     <div className="flex items-center space-x-2">
                         <button
                             onClick={handleSave}
-                            disabled={isSaving}
-                            className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isSaving ? 'text-zinc-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20'}`}
+                            disabled={isSaving || isSaved}
+                            className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isSaved
+                                    ? 'bg-green-600/20 text-green-400 border border-green-600/30 cursor-default'
+                                    : isSaving
+                                        ? 'text-zinc-500 cursor-not-allowed'
+                                        : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20'
+                                }`}
                         >
-                            <Save size={14} className={isSaving ? "animate-spin" : ""} />
-                            <span>{isSaving ? "Saving..." : "Save"}</span>
+                            {isSaved ? <Check size={14} /> : <Save size={14} className={isSaving ? "animate-spin" : ""} />}
+                            <span>{isSaving ? "Saving..." : isSaved ? "Saved" : "Save"}</span>
                         </button>
                         <div className="w-px h-4 bg-white/10 mx-2" />
                         <button
@@ -187,7 +198,7 @@ export function TextEditorModal({ isOpen, onClose, onSave, fileName, initialCont
                         defaultValue={initialContent}
                         theme="transparent-dark"
                         onMount={handleEditorDidMount}
-                        onChange={() => !isDirty && setIsDirty(true)}
+                        onChange={handleContentChange}
                         options={{
                             minimap: { enabled: true },
                             fontSize: fontSize,

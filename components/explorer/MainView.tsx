@@ -75,7 +75,7 @@ export default function MainView() {
     const [compressModal, setCompressModal] = useState<{ isOpen: boolean, items: APIFile[] }>({ isOpen: false, items: [] });
     const [textEditor, setTextEditor] = useState<{ isOpen: boolean, file: APIFile | null, content: string }>({ isOpen: false, file: null, content: '' });
     const [lockModal, setLockModal] = useState<{ isOpen: boolean, item: APIFile | APIFolder | null }>({ isOpen: false, item: null });
-    const [unlockModal, setUnlockModal] = useState<{ isOpen: boolean, item: APIFile | APIFolder | null, action: 'open' | 'download' }>({ isOpen: false, item: null, action: 'open' });
+    const [unlockModal, setUnlockModal] = useState<{ isOpen: boolean, item: APIFile | APIFolder | null, action: 'open' | 'download' | 'delete' }>({ isOpen: false, item: null, action: 'open' });
 
     // Box Selection State
     const [isBoxSelecting, setIsBoxSelecting] = useState(false);
@@ -356,6 +356,27 @@ export default function MainView() {
 
     const initiateDelete = () => {
         if (selectedIds.size === 0) return;
+
+        // Check for locked items
+        const selectedItems = items.filter(i => selectedIds.has(i.id));
+        const lockedItems = selectedItems.filter(i => i.locked);
+
+        if (lockedItems.length > 0) {
+            if (selectedIds.size === 1) {
+                // Single locked item - prompt for password
+                setUnlockModal({ isOpen: true, item: lockedItems[0], action: 'delete' });
+                return;
+            } else {
+                // Multiple items with at least one locked
+                setAlertModal({
+                    isOpen: true,
+                    title: 'Action Denied',
+                    message: 'Cannot delete locked items with bulk selection. Please unlock them individually or delete them one by one.'
+                });
+                return;
+            }
+        }
+
         setDeleteModal({ isOpen: true, count: selectedIds.size });
     };
 
@@ -581,6 +602,16 @@ export default function MainView() {
                     }
                 }
                 setUnlockModal({ isOpen: false, item: null, action: 'open' });
+            } else if (action === 'delete') {
+                // 1. Unlock permanently
+                await unlockNode(item.id, password);
+                // 2. Delete
+                await handleDelete(item.id);
+
+                // Refresh and close
+                setUnlockModal({ isOpen: false, item: null, action: 'open' });
+                setSelectedIds(new Set()); // Clear selection
+                refresh();
             }
         } catch (e: any) {
             setAlertModal({ isOpen: true, title: 'Access Denied', message: e.message });

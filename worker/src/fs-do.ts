@@ -489,6 +489,8 @@ export class FileSystemDO {
         const node = await this.getNode(id);
         if (!node) return; // Idempotent
 
+        if (node.locked) throw new ClientError("Cannot delete locked item", 403);
+
         // If folder, modify children recursively
         if (!('chunks' in node)) { // Folder
             const childrenIds = await this.getChildrenIds(id);

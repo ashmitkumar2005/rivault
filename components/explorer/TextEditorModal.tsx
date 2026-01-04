@@ -18,6 +18,8 @@ export function TextEditorModal({ isOpen, onClose, onSave, fileName, initialCont
     const [isSaving, setIsSaving] = useState(false);
     const [isDirty, setIsDirty] = useState(false);
 
+    const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+
     // Editor State
     const [wordWrap, setWordWrap] = useState<'on' | 'off'>('on');
     const [fontSize, setFontSize] = useState(14);
@@ -29,13 +31,21 @@ export function TextEditorModal({ isOpen, onClose, onSave, fileName, initialCont
                 e.preventDefault();
                 handleSave();
             }
+            // Close on Escape, but check for handling confirm first
+            if (e.key === 'Escape') {
+                if (showCloseConfirm) {
+                    setShowCloseConfirm(false);
+                } else {
+                    handleCloseRequest();
+                }
+            }
         };
 
         if (isOpen) {
             window.addEventListener('keydown', handleKeyDown);
         }
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen]);
+    }, [isOpen, showCloseConfirm, isDirty]);
 
     const handleEditorDidMount: OnMount = (editor, monaco) => {
         editorRef.current = editor;
@@ -69,11 +79,25 @@ export function TextEditorModal({ isOpen, onClose, onSave, fileName, initialCont
             const value = editorRef.current.getValue();
             await onSave(value);
             setIsDirty(false);
+            setShowCloseConfirm(false); // Can close after save if that was the intent, but usually save is explicit.
         } catch (error) {
             console.error("Failed to save:", error);
             // Optionally trigger an alert here or let parent handle it
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const handleSaveAndClose = async () => {
+        await handleSave();
+        onClose();
+    };
+
+    const handleCloseRequest = () => {
+        if (isDirty) {
+            setShowCloseConfirm(true);
+        } else {
+            onClose();
         }
     };
 
@@ -110,8 +134,39 @@ export function TextEditorModal({ isOpen, onClose, onSave, fileName, initialCont
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md animate-fade-in">
-            <div className="w-full h-full md:w-[90vw] md:h-[90vh] bg-zinc-900/30 backdrop-blur-xl md:rounded-xl shadow-2xl flex flex-col border border-white/10 overflow-hidden ring-1 ring-white/5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md animate-fade-in relative">
+            <div className="w-full h-full md:w-[90vw] md:h-[90vh] bg-zinc-900/30 backdrop-blur-xl md:rounded-xl shadow-2xl flex flex-col border border-white/10 overflow-hidden ring-1 ring-white/5 relative">
+
+                {/* Confirmation Overlay */}
+                {showCloseConfirm && (
+                    <div className="absolute inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center">
+                        <div className="bg-zinc-900 border border-white/10 rounded-xl p-6 shadow-2xl max-w-sm w-full mx-4 animate-scale-in">
+                            <h3 className="text-lg font-semibold text-white mb-2">Unsaved Changes</h3>
+                            <p className="text-zinc-400 text-sm mb-6">You have unsaved changes. Do you want to save them before closing?</p>
+                            <div className="flex justify-end space-x-3">
+                                <button
+                                    onClick={() => onClose()} // Force close without saving
+                                    className="px-4 py-2 text-sm font-medium text-red-400 hover:text-red-300 transition-colors"
+                                >
+                                    Don't Save
+                                </button>
+                                <button
+                                    onClick={() => setShowCloseConfirm(false)}
+                                    className="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-white transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleSaveAndClose}
+                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium shadow-lg shadow-blue-500/20"
+                                >
+                                    Save & Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Header */}
                 <div className="h-12 bg-white/5 backdrop-blur-md flex items-center justify-between px-4 border-b border-white/10 select-none">
                     <div className="flex items-center space-x-3">
@@ -131,7 +186,7 @@ export function TextEditorModal({ isOpen, onClose, onSave, fileName, initialCont
                         </button>
                         <div className="w-px h-4 bg-white/10 mx-2" />
                         <button
-                            onClick={onClose}
+                            onClick={handleCloseRequest}
                             className="p-1.5 hover:bg-white/10 rounded-lg text-zinc-400 hover:text-white transition-colors"
                         >
                             <X size={18} />

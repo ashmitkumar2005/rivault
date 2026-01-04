@@ -1133,7 +1133,12 @@ export default function MainView() {
                                                     {item.name}
                                                 </div>
                                                 <div className="w-24 text-sm text-zinc-500 hidden md:block">{isDir ? (item.type === 'drive' ? 'Drive' : 'Folder') : 'File'}</div>
-                                                <div className="w-20 md:w-24 text-sm text-zinc-500 text-right md:text-left">{isDir ? '-' : formatSize((item as APIFile).size)}</div>
+                                                <div className="w-20 md:w-24 text-sm text-zinc-500 text-right md:text-left">
+                                                    {item.type === 'drive' && item.quota
+                                                        ? `${formatSize(item.usage || 0)} used`
+                                                        : isDir ? '-' : formatSize((item as APIFile).size)
+                                                    }
+                                                </div>
                                                 <div className="w-32 text-sm text-zinc-600 group-hover:text-zinc-500 hidden md:block">
                                                     {isDir
                                                         ? new Date(item.createdAt).toLocaleDateString()
@@ -1244,8 +1249,23 @@ export default function MainView() {
                                             <div className={`text-sm font-medium text-center truncate w-full ${isSel ? "text-blue-100" : isFocused ? "text-white" : "text-zinc-300 group-hover:text-white"}`}>
                                                 {item.name}
                                             </div>
-                                            <div className="text-[10px] text-zinc-500 mt-1">
-                                                {isDir ? 'Folder' : formatSize((item as APIFile).size)}
+                                            <div className="text-[10px] text-zinc-500 mt-1 w-full">
+                                                {item.type === 'drive' && item.quota ? (
+                                                    <div className="w-full px-2">
+                                                        <div className="flex justify-between text-[9px] mb-0.5 opacity-80">
+                                                            <span>{formatSize(item.usage || 0)}</span>
+                                                            <span>{formatSize(item.quota)}</span>
+                                                        </div>
+                                                        <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                                                            <div
+                                                                className={`h-full rounded-full transition-all duration-500 ${((item.usage || 0) / item.quota) > 0.9 ? 'bg-red-500' : 'bg-blue-500'}`}
+                                                                style={{ width: `${Math.min(100, ((item.usage || 0) / item.quota) * 100)}%` }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    isDir ? 'Folder' : formatSize((item as APIFile).size)
+                                                )}
                                             </div>
                                         </div>
                                     );

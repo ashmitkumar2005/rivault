@@ -111,7 +111,7 @@ export function TextEditorModal({ isOpen, onClose, onSave, fileName, initialCont
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md animate-fade-in">
-            <div className="w-full h-full md:w-[90vw] md:h-[90vh] bg-zinc-900/60 backdrop-blur-xl md:rounded-xl shadow-2xl flex flex-col border border-white/10 overflow-hidden ring-1 ring-white/5">
+            <div className="w-full h-full md:w-[90vw] md:h-[90vh] bg-zinc-900/30 backdrop-blur-xl md:rounded-xl shadow-2xl flex flex-col border border-white/10 overflow-hidden ring-1 ring-white/5">
                 {/* Header */}
                 <div className="h-12 bg-white/5 backdrop-blur-md flex items-center justify-between px-4 border-b border-white/10 select-none">
                     <div className="flex items-center space-x-3">
@@ -186,7 +186,7 @@ export function TextEditorModal({ isOpen, onClose, onSave, fileName, initialCont
                 </div>
 
                 {/* Footer status bar */}
-                <div className="h-6 bg-blue-600/80 backdrop-blur-md text-white text-[10px] px-4 flex items-center justify-between select-none border-t border-white/10">
+                <div className="h-6 bg-blue-600/50 backdrop-blur-md text-white text-[10px] px-4 flex items-center justify-between select-none border-t border-white/10">
                     <div className="flex items-center space-x-4">
                         <span>{language.toUpperCase()}</span>
                         <span>Shift+Alt+F for Format</span>

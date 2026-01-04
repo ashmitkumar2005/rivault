@@ -111,7 +111,7 @@ export default function MainView() {
 
             try {
                 const rootNodes = await listFolder('root');
-                const hiddenDrives = rootNodes.filter(n => isDrive(n) && n.hidden);
+                const hiddenDrives = rootNodes.filter(isDrive).filter(n => n.hidden);
 
                 // Check for custom codes
                 for (const drive of hiddenDrives) {

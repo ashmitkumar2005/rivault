@@ -48,6 +48,74 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
 
     const [storageUsage, setStorageUsage] = useState(0);
 
+    // Batch Queue State
+    const pendingActions = React.useRef<Array<{ type: 'delete' | 'rename' | 'move', id: string, [key: string]: any }>>([]);
+    const [hasPendingChanges, setHasPendingChanges] = useState(false);
+
+    // Flush Logic
+    const flushChanges = useCallback(async () => {
+        if (pendingActions.current.length === 0) return;
+
+        const actionsToSync = [...pendingActions.current];
+        pendingActions.current = []; // Clear immediately to capture new ones
+        setHasPendingChanges(false);
+
+        try {
+            // Use keepalive for page exit scenarios
+            await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787/api'}/batch`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Rivault-User': 'default' },
+                body: JSON.stringify({ actions: actionsToSync }),
+                keepalive: true
+            });
+            console.log('Synced', actionsToSync.length, 'actions');
+        } catch (e) {
+            console.error("Sync failed", e);
+            // Restore? Complex. For now, just log.
+            // In a real app we might put them back in queue or show error.
+            alert("Failed to sync changes to server. Please refresh.");
+        }
+    }, []);
+
+    // Trigger Sync on Navigation (Route Change) or Unload
+    useEffect(() => {
+        // Sync when path changes (navigation within the app)
+        flushChanges();
+
+        // Cleanup function runs on unmount (or dependence change)
+        return () => {
+            flushChanges();
+        };
+    }, [currentPath, flushChanges]);
+
+    // Handle Window Unload (Tab Close / Reload)
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            if (hasPendingChanges) {
+                // We cannot await here, but keepalive fetch in flushChanges handles it
+                flushChanges();
+                // Optional: Prompt user? "You have unsaved changes"
+                // e.preventDefault();
+                // e.returnValue = '';
+            }
+        };
+
+        // Also listen for visibility change to be safe (mobile)
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'hidden') {
+                flushChanges();
+            }
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [hasPendingChanges, flushChanges]);
+
     // Fetch Content
     const refresh = useCallback(async () => {
         setIsLoading(true);
@@ -99,30 +167,31 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
     const toggleViewMode = () => setViewMode(prev => prev === "grid" ? "list" : "grid");
 
     const handleDelete = async (id: string) => {
-        try {
-            await deleteNode(id);
-            refresh();
-        } catch (e: any) {
-            alert("Failed to delete: " + e.message);
-        }
+        // Optimistic Update
+        setItems(prev => prev.filter(i => i.id !== id));
+        // Queue
+        pendingActions.current.push({ type: 'delete', id });
+        setHasPendingChanges(true);
     };
 
     const handleRename = async (id: string, newName: string) => {
-        try {
-            await renameNode(id, newName);
-            refresh();
-        } catch (e: any) {
-            alert("Failed to rename: " + e.message);
-        }
+        // Optimistic Update
+        setItems(prev => prev.map(i => i.id === id ? { ...i, name: newName, updatedAt: Date.now() } : i));
+        // Queue
+        pendingActions.current.push({ type: 'rename', id, name: newName });
+        setHasPendingChanges(true);
     };
 
     const handleMove = async (id: string, newParentId: string) => {
-        try {
-            await moveNode(id, newParentId);
-            refresh();
-        } catch (e: any) {
-            alert("Failed to move: " + e.message);
-        }
+        // Optimistic: If moving to different folder, remove from view.
+        // If moving to THIS folder (unlikely), valid?
+
+        // Assuming current view is source:
+        setItems(prev => prev.filter(i => i.id !== id));
+
+        // Queue
+        pendingActions.current.push({ type: 'move', id, newParentId });
+        setHasPendingChanges(true);
     };
 
     return (

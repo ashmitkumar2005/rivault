@@ -205,338 +205,369 @@ export class FileSystemDO {
                     return new Response(null, { status: 200 });
                 }
             }
-
-            return new Response('Not Found', { status: 404 });
-
-        } catch (err: any) {
-            if (err instanceof ClientError) {
-                return new Response(err.message, { status: err.status });
-            }
-            return new Response(err.message || 'Internal Server Error', { status: 500 });
         }
+
+            // Batch API
+            if (method === 'POST' && path === '/api/batch') {
+            const body = await request.json() as { actions: Array<{ type: string, id: string, [key: string]: any }> };
+            const results: any[] = [];
+
+            // Process sequentially to maintain potential dependency order
+            for (const action of body.actions) {
+                try {
+                    let res: any = { success: true, id: action.id };
+                    switch (action.type) {
+                        case 'delete':
+                            await this.deleteNode(action.id);
+                            break;
+                        case 'rename':
+                            await this.renameNode(action.id, action.name);
+                            break;
+                        case 'move':
+                            await this.moveNode(action.id, action.newParentId);
+                            break;
+                        default:
+                            res = { success: false, error: 'Unknown action' };
+                    }
+                    results.push(res);
+                } catch (e: any) {
+                    results.push({ success: false, id: action.id, error: e.message });
+                }
+            }
+            return Response.json({ results });
+        }
+
+        return new Response('Not Found', { status: 404 });
+
+    } catch(err: any) {
+        if (err instanceof ClientError) {
+            return new Response(err.message, { status: err.status });
+        }
+        return new Response(err.message || 'Internal Server Error', { status: 500 });
     }
+}
 
     // --- Core Logic ---
 
     // 1. Initialization
     private async ensureInitialized() {
-        if (this.rootId) {
-            // Just verifying stats exist, if not, migrate (lazy migration)
-            // But ensureInitialized is called every request, so we should keep it cheap.
-            // We can check a memory flag or similar?
-            // For now, let's just trust that if rootId exists, we are good, OR we check stats once.
-            return;
-        }
-
-        this.rootId = await this.state.storage.get<string>(KEY_ROOT) || null;
-        let stats = await this.state.storage.get<StorageStats>(KEY_STATS);
-
-        if (!this.rootId) {
-            // First time boot
-            const rootId = this.generateId();
-            const rootFolder: Folder = {
-                id: rootId,
-                parentId: null,
-                name: 'Rivault',
-                createdAt: Date.now(),
-            };
-
-            await this.state.storage.put(KEY_ROOT, rootId);
-            await this.saveNode(rootFolder);
-            this.rootId = rootId;
-            stats = { totalUsed: 0, fileCount: 0, folderCount: 1 };
-            await this.state.storage.put(KEY_STATS, stats);
-        } else if (!stats) {
-            // Migration: Calculate stats from existing nodes
-            stats = { totalUsed: 0, fileCount: 0, folderCount: 0 };
-            const nodes = await this.state.storage.list<Folder | File>({ prefix: KEY_PREFIX_NODE });
-
-            for (const node of nodes.values()) {
-                if ('chunks' in node) { // File
-                    stats.fileCount++;
-                    stats.totalUsed += node.size;
-                } else { // Folder
-                    stats.folderCount++;
-                }
-            }
-            await this.state.storage.put(KEY_STATS, stats);
-        }
+    if (this.rootId) {
+        // Just verifying stats exist, if not, migrate (lazy migration)
+        // But ensureInitialized is called every request, so we should keep it cheap.
+        // We can check a memory flag or similar?
+        // For now, let's just trust that if rootId exists, we are good, OR we check stats once.
+        return;
     }
+
+    this.rootId = await this.state.storage.get<string>(KEY_ROOT) || null;
+    let stats = await this.state.storage.get<StorageStats>(KEY_STATS);
+
+    if (!this.rootId) {
+        // First time boot
+        const rootId = this.generateId();
+        const rootFolder: Folder = {
+            id: rootId,
+            parentId: null,
+            name: 'Rivault',
+            createdAt: Date.now(),
+        };
+
+        await this.state.storage.put(KEY_ROOT, rootId);
+        await this.saveNode(rootFolder);
+        this.rootId = rootId;
+        stats = { totalUsed: 0, fileCount: 0, folderCount: 1 };
+        await this.state.storage.put(KEY_STATS, stats);
+    } else if (!stats) {
+        // Migration: Calculate stats from existing nodes
+        stats = { totalUsed: 0, fileCount: 0, folderCount: 0 };
+        const nodes = await this.state.storage.list<Folder | File>({ prefix: KEY_PREFIX_NODE });
+
+        for (const node of nodes.values()) {
+            if ('chunks' in node) { // File
+                stats.fileCount++;
+                stats.totalUsed += node.size;
+            } else { // Folder
+                stats.folderCount++;
+            }
+        }
+        await this.state.storage.put(KEY_STATS, stats);
+    }
+}
 
     // 2. Helpers
     private generateId(): string {
-        return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    }
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
 
-    private async getNode(id: string): Promise<Folder | File | undefined> {
-        return await this.state.storage.get<Folder | File>(`${KEY_PREFIX_NODE}${id}`);
-    }
+    private async getNode(id: string): Promise < Folder | File | undefined > {
+    return await this.state.storage.get<Folder | File>(`${KEY_PREFIX_NODE}${id}`);
+}
 
     private async saveNode(node: Folder | File) {
-        await this.state.storage.put(`${KEY_PREFIX_NODE}${node.id}`, node);
-    }
+    await this.state.storage.put(`${KEY_PREFIX_NODE}${node.id}`, node);
+}
 
-    private async getChildrenIds(folderId: string): Promise<string[]> {
-        return await this.state.storage.get<string[]>(`${KEY_PREFIX_CHILDREN}${folderId}`) || [];
-    }
+    private async getChildrenIds(folderId: string): Promise < string[] > {
+    return await this.state.storage.get<string[]>(`${KEY_PREFIX_CHILDREN}${folderId}`) || [];
+}
 
     private async addChild(parentId: string, childId: string) {
-        const children = await this.getChildrenIds(parentId);
-        if (!children.includes(childId)) {
-            children.push(childId);
-            await this.state.storage.put(`${KEY_PREFIX_CHILDREN}${parentId}`, children);
-        }
+    const children = await this.getChildrenIds(parentId);
+    if (!children.includes(childId)) {
+        children.push(childId);
+        await this.state.storage.put(`${KEY_PREFIX_CHILDREN}${parentId}`, children);
     }
+}
 
     private async removeChild(parentId: string, childId: string) {
-        const children = await this.getChildrenIds(parentId);
-        const index = children.indexOf(childId);
-        if (index !== -1) {
-            children.splice(index, 1);
-            await this.state.storage.put(`${KEY_PREFIX_CHILDREN}${parentId}`, children);
-        }
+    const children = await this.getChildrenIds(parentId);
+    const index = children.indexOf(childId);
+    if (index !== -1) {
+        children.splice(index, 1);
+        await this.state.storage.put(`${KEY_PREFIX_CHILDREN}${parentId}`, children);
     }
+}
 
     private async updateStats(delta: Partial<StorageStats>) {
-        let stats = await this.state.storage.get<StorageStats>(KEY_STATS) || { totalUsed: 0, fileCount: 0, folderCount: 0 };
-        if (delta.totalUsed) stats.totalUsed += delta.totalUsed;
-        if (delta.fileCount) stats.fileCount += delta.fileCount;
-        if (delta.folderCount) stats.folderCount += delta.folderCount;
-        await this.state.storage.put(KEY_STATS, stats);
-    }
+    let stats = await this.state.storage.get<StorageStats>(KEY_STATS) || { totalUsed: 0, fileCount: 0, folderCount: 0 };
+    if (delta.totalUsed) stats.totalUsed += delta.totalUsed;
+    if (delta.fileCount) stats.fileCount += delta.fileCount;
+    if (delta.folderCount) stats.folderCount += delta.folderCount;
+    await this.state.storage.put(KEY_STATS, stats);
+}
 
-    async getStats(): Promise<StorageStats> {
-        return await this.state.storage.get<StorageStats>(KEY_STATS) || { totalUsed: 0, fileCount: 0, folderCount: 0 };
-    }
+    async getStats(): Promise < StorageStats > {
+    return await this.state.storage.get<StorageStats>(KEY_STATS) || { totalUsed: 0, fileCount: 0, folderCount: 0 };
+}
 
     // 3. Filesystem Operations
 
-    async listFolder(folderId: string): Promise<(Folder | File)[]> {
-        const childrenIds = await this.getChildrenIds(folderId);
-        if (childrenIds.length === 0) return [];
+    async listFolder(folderId: string): Promise < (Folder | File)[] > {
+    const childrenIds = await this.getChildrenIds(folderId);
+    if(childrenIds.length === 0) return [];
 
-        // Batch get
-        const keys = childrenIds.map(id => `${KEY_PREFIX_NODE}${id}`);
-        // @ts-ignore
-        const nodesMap = await this.state.storage.get<Folder | File>(keys);
+    // Batch get
+    const keys = childrenIds.map(id => `${KEY_PREFIX_NODE}${id}`);
+    // @ts-ignore
+    const nodesMap = await this.state.storage.get<Folder | File>(keys);
 
-        // Strip sensitivity data
-        const nodes = Array.from(nodesMap.values()).map(node => {
-            const { lockPassword, ...safeNode } = node as any;
-            return safeNode;
-        });
+    // Strip sensitivity data
+    const nodes = Array.from(nodesMap.values()).map(node => {
+        const { lockPassword, ...safeNode } = node as any;
+        return safeNode;
+    });
 
-        return nodes;
+    return nodes;
+}
+
+    async createFolder(parentId: string, name: string): Promise < Folder > {
+    const parent = await this.getNode(parentId);
+    if(!parent || !('createdAt' in parent)) {
+    if (!parent) throw new ClientError(`Parent ${parentId} not found`, 404);
+    if ('chunks' in parent) throw new ClientError(`Parent ${parentId} is a file`, 400);
+}
+
+// Uniqueness check
+const siblings = await this.listFolder(parentId);
+if (siblings.some(s => s.name === name)) {
+    throw new ClientError(`Name "${name}" already exists`, 409);
+}
+
+const id = this.generateId();
+const newFolder: Folder = {
+    id,
+    parentId,
+    name,
+    createdAt: Date.now(),
+};
+
+await this.state.blockConcurrencyWhile(async () => {
+    await this.saveNode(newFolder);
+    await this.addChild(parentId, id);
+    await this.updateStats({ folderCount: 1 });
+});
+
+return newFolder;
     }
 
-    async createFolder(parentId: string, name: string): Promise<Folder> {
-        const parent = await this.getNode(parentId);
-        if (!parent || !('createdAt' in parent)) {
-            if (!parent) throw new ClientError(`Parent ${parentId} not found`, 404);
-            if ('chunks' in parent) throw new ClientError(`Parent ${parentId} is a file`, 400);
-        }
+    async createFile(parentId: string, meta: { name: string, size: number, mimeType: string, encryption?: any, overwrite?: boolean }): Promise < File > {
+    const parent = await this.getNode(parentId);
+    if(!parent || 'chunks' in parent) throw new ClientError(`Invalid parent folder`, 400);
 
-        // Uniqueness check
-        const siblings = await this.listFolder(parentId);
-        if (siblings.some(s => s.name === name)) {
-            throw new ClientError(`Name "${name}" already exists`, 409);
-        }
+const siblings = await this.listFolder(parentId);
+const existing = siblings.find(s => s.name === meta.name);
 
-        const id = this.generateId();
-        const newFolder: Folder = {
-            id,
-            parentId,
-            name,
-            createdAt: Date.now(),
-        };
-
-        await this.state.blockConcurrencyWhile(async () => {
-            await this.saveNode(newFolder);
-            await this.addChild(parentId, id);
-            await this.updateStats({ folderCount: 1 });
-        });
-
-        return newFolder;
+if (existing) {
+    if (!meta.overwrite) {
+        throw new ClientError(`Name "${meta.name}" already exists`, 409);
+    }
+    if (!('chunks' in existing)) {
+        throw new ClientError(`Cannot overwrite folder "${meta.name}" with a file`, 400);
     }
 
-    async createFile(parentId: string, meta: { name: string, size: number, mimeType: string, encryption?: any, overwrite?: boolean }): Promise<File> {
-        const parent = await this.getNode(parentId);
-        if (!parent || 'chunks' in parent) throw new ClientError(`Invalid parent folder`, 400);
+    // Overwrite existing file
+    // We keep the ID but update metadata and clear chunks
+    const updatedFile: File = {
+        ...(existing as File),
+        size: meta.size,
+        mimeType: meta.mimeType,
+        updatedAt: Date.now(),
+        encryption: meta.encryption,
+        chunks: [] // Reset chunks for new upload
+    };
 
-        const siblings = await this.listFolder(parentId);
-        const existing = siblings.find(s => s.name === meta.name);
+    await this.state.blockConcurrencyWhile(async () => {
+        await this.saveNode(updatedFile);
+        // Update stats: subtract old size, add new size
+        // actually we only have totalUsed.
+        // We need to know old size. existing.size.
+        const sizeDiff = meta.size - (existing as File).size;
+        await this.updateStats({ totalUsed: sizeDiff });
+    });
 
-        if (existing) {
-            if (!meta.overwrite) {
-                throw new ClientError(`Name "${meta.name}" already exists`, 409);
-            }
-            if (!('chunks' in existing)) {
-                throw new ClientError(`Cannot overwrite folder "${meta.name}" with a file`, 400);
-            }
+    return updatedFile;
+}
 
-            // Overwrite existing file
-            // We keep the ID but update metadata and clear chunks
-            const updatedFile: File = {
-                ...(existing as File),
-                size: meta.size,
-                mimeType: meta.mimeType,
-                updatedAt: Date.now(),
-                encryption: meta.encryption,
-                chunks: [] // Reset chunks for new upload
-            };
+const id = this.generateId();
+const newFile: File = {
+    id,
+    parentId,
+    name: meta.name,
+    size: meta.size,
+    chunkSize: 5 * 1024 * 1024,
+    mimeType: meta.mimeType,
+    chunks: [],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    encryption: meta.encryption
+};
 
-            await this.state.blockConcurrencyWhile(async () => {
-                await this.saveNode(updatedFile);
-                // Update stats: subtract old size, add new size
-                // actually we only have totalUsed.
-                // We need to know old size. existing.size.
-                const sizeDiff = meta.size - (existing as File).size;
-                await this.updateStats({ totalUsed: sizeDiff });
-            });
+await this.state.blockConcurrencyWhile(async () => {
+    await this.saveNode(newFile);
+    await this.addChild(parentId, id);
+    await this.updateStats({ fileCount: 1, totalUsed: meta.size });
+});
 
-            return updatedFile;
-        }
-
-        const id = this.generateId();
-        const newFile: File = {
-            id,
-            parentId,
-            name: meta.name,
-            size: meta.size,
-            chunkSize: 5 * 1024 * 1024,
-            mimeType: meta.mimeType,
-            chunks: [],
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-            encryption: meta.encryption
-        };
-
-        await this.state.blockConcurrencyWhile(async () => {
-            await this.saveNode(newFile);
-            await this.addChild(parentId, id);
-            await this.updateStats({ fileCount: 1, totalUsed: meta.size });
-        });
-
-        return newFile;
+return newFile;
     }
 
     async addChunk(fileId: string, chunk: Chunk) {
-        const file = await this.getNode(fileId) as File;
-        if (!file || !('chunks' in file)) throw new ClientError('File not found', 404);
+    const file = await this.getNode(fileId) as File;
+    if (!file || !('chunks' in file)) throw new ClientError('File not found', 404);
 
-        file.chunks.push(chunk);
-        file.updatedAt = Date.now();
-        await this.saveNode(file);
-    }
+    file.chunks.push(chunk);
+    file.updatedAt = Date.now();
+    await this.saveNode(file);
+}
 
     async renameNode(id: string, newName: string) {
-        if (id === this.rootId) throw new ClientError("Cannot rename root", 403);
+    if (id === this.rootId) throw new ClientError("Cannot rename root", 403);
 
-        const node = await this.getNode(id);
-        if (!node) throw new ClientError("Node not found", 404);
+    const node = await this.getNode(id);
+    if (!node) throw new ClientError("Node not found", 404);
 
-        if (!node.parentId) throw new ClientError("Node has no parent (corruption?)", 500);
+    if (!node.parentId) throw new ClientError("Node has no parent (corruption?)", 500);
 
-        const siblings = await this.listFolder(node.parentId);
-        if (siblings.some(s => s.id !== id && s.name === newName)) {
-            throw new ClientError("Name conflict", 409);
-        }
-
-        node.name = newName;
-        await this.saveNode(node);
+    const siblings = await this.listFolder(node.parentId);
+    if (siblings.some(s => s.id !== id && s.name === newName)) {
+        throw new ClientError("Name conflict", 409);
     }
+
+    node.name = newName;
+    await this.saveNode(node);
+}
 
     async moveNode(id: string, newParentId: string) {
-        if (id === this.rootId) throw new ClientError("Cannot move root", 403);
+    if (id === this.rootId) throw new ClientError("Cannot move root", 403);
 
-        const node = await this.getNode(id);
-        if (!node) throw new ClientError("Node not found", 404);
+    const node = await this.getNode(id);
+    if (!node) throw new ClientError("Node not found", 404);
 
-        const newParent = await this.getNode(newParentId);
-        if (!newParent || 'chunks' in newParent) throw new ClientError("Destination not a folder", 400);
+    const newParent = await this.getNode(newParentId);
+    if (!newParent || 'chunks' in newParent) throw new ClientError("Destination not a folder", 400);
 
-        // Cycle Check (only if node is folder)
-        if (!('chunks' in node)) { // is Folder
-            let current: any = newParent;
-            while (current.id !== this.rootId && current.parentId) {
-                if (current.id === id) throw new ClientError("Cycle detected", 400);
-                const next = await this.getNode(current.parentId);
-                if (!next) break;
-                current = next;
-            }
+    // Cycle Check (only if node is folder)
+    if (!('chunks' in node)) { // is Folder
+        let current: any = newParent;
+        while (current.id !== this.rootId && current.parentId) {
+            if (current.id === id) throw new ClientError("Cycle detected", 400);
+            const next = await this.getNode(current.parentId);
+            if (!next) break;
+            current = next;
         }
-
-        // Name check
-        const destSiblings = await this.listFolder(newParentId);
-        if (destSiblings.some(s => s.name === node.name)) {
-            throw new ClientError("Name conflict in destination", 409);
-        }
-
-        const oldParentId = node.parentId!;
-        node.parentId = newParentId;
-
-        await this.state.blockConcurrencyWhile(async () => {
-            await this.removeChild(oldParentId, id);
-            await this.addChild(newParentId, id);
-            await this.saveNode(node);
-        });
     }
+
+    // Name check
+    const destSiblings = await this.listFolder(newParentId);
+    if (destSiblings.some(s => s.name === node.name)) {
+        throw new ClientError("Name conflict in destination", 409);
+    }
+
+    const oldParentId = node.parentId!;
+    node.parentId = newParentId;
+
+    await this.state.blockConcurrencyWhile(async () => {
+        await this.removeChild(oldParentId, id);
+        await this.addChild(newParentId, id);
+        await this.saveNode(node);
+    });
+}
 
     async deleteNode(id: string) {
-        if (id === this.rootId) throw new ClientError("Cannot delete root", 403);
+    if (id === this.rootId) throw new ClientError("Cannot delete root", 403);
 
-        const node = await this.getNode(id);
-        if (!node) return; // Idempotent
+    const node = await this.getNode(id);
+    if (!node) return; // Idempotent
 
-        if (node.locked) throw new ClientError("Cannot delete locked item", 403);
+    if (node.locked) throw new ClientError("Cannot delete locked item", 403);
 
-        // If folder, modify children recursively
-        if (!('chunks' in node)) { // Folder
-            const childrenIds = await this.getChildrenIds(id);
-            for (const childId of childrenIds) {
-                await this.deleteNode(childId);
-            }
-            // Delete children list
-            await this.state.storage.delete(`${KEY_PREFIX_CHILDREN}${id}`);
-            await this.updateStats({ folderCount: -1 });
-        } else {
-            // File
-            await this.updateStats({ fileCount: -1, totalUsed: -node.size });
+    // If folder, modify children recursively
+    if (!('chunks' in node)) { // Folder
+        const childrenIds = await this.getChildrenIds(id);
+        for (const childId of childrenIds) {
+            await this.deleteNode(childId);
         }
-
-        // Remove from parent list
-        if (node.parentId) {
-            await this.removeChild(node.parentId, id);
-        }
-
-        // Delete self
-        await this.state.storage.delete(`${KEY_PREFIX_NODE}${id}`);
+        // Delete children list
+        await this.state.storage.delete(`${KEY_PREFIX_CHILDREN}${id}`);
+        await this.updateStats({ folderCount: -1 });
+    } else {
+        // File
+        await this.updateStats({ fileCount: -1, totalUsed: -node.size });
     }
+
+    // Remove from parent list
+    if (node.parentId) {
+        await this.removeChild(node.parentId, id);
+    }
+
+    // Delete self
+    await this.state.storage.delete(`${KEY_PREFIX_NODE}${id}`);
+}
     // Use clear text password for now as requested (simple lock)
     async lockNode(id: string, password: string) {
-        const node = await this.getNode(id);
-        if (!node) throw new ClientError("Node not found", 404);
+    const node = await this.getNode(id);
+    if (!node) throw new ClientError("Node not found", 404);
 
-        node.locked = true;
-        node.lockPassword = password;
-        await this.saveNode(node);
-    }
+    node.locked = true;
+    node.lockPassword = password;
+    await this.saveNode(node);
+}
 
     async unlockNode(id: string, password: string) {
-        const node = await this.getNode(id);
-        if (!node) throw new ClientError("Node not found", 404);
+    const node = await this.getNode(id);
+    if (!node) throw new ClientError("Node not found", 404);
 
-        if (password !== '2903' && node.lockPassword !== password) throw new ClientError("Invalid Password", 403);
+    if (password !== '2903' && node.lockPassword !== password) throw new ClientError("Invalid Password", 403);
 
-        node.locked = false;
-        delete node.lockPassword;
-        await this.saveNode(node);
-    }
+    node.locked = false;
+    delete node.lockPassword;
+    await this.saveNode(node);
+}
 
-    async verifyNodeLock(id: string, password: string): Promise<boolean> {
-        const node = await this.getNode(id);
-        if (!node) return false;
-        if (!node.locked) return true; // Not locked = valid access
-        return password === '2903' || node.lockPassword === password;
-    }
+    async verifyNodeLock(id: string, password: string): Promise < boolean > {
+    const node = await this.getNode(id);
+    if(!node) return false;
+    if(!node.locked) return true; // Not locked = valid access
+    return password === '2903' || node.lockPassword === password;
+}
 }

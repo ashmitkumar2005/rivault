@@ -75,7 +75,7 @@ export default function MainView() {
     const [compressModal, setCompressModal] = useState<{ isOpen: boolean, items: APIFile[] }>({ isOpen: false, items: [] });
     const [textEditor, setTextEditor] = useState<{ isOpen: boolean, file: APIFile | null, content: string }>({ isOpen: false, file: null, content: '' });
     const [lockModal, setLockModal] = useState<{ isOpen: boolean, item: APIFile | APIFolder | null }>({ isOpen: false, item: null });
-    const [unlockModal, setUnlockModal] = useState<{ isOpen: boolean, item: APIFile | APIFolder | null, action: 'open' | 'download' | 'delete' }>({ isOpen: false, item: null, action: 'open' });
+    const [unlockModal, setUnlockModal] = useState<{ isOpen: boolean, item: APIFile | APIFolder | null, action: 'open' | 'download' | 'delete' | 'unlock' }>({ isOpen: false, item: null, action: 'open' });
 
     // Box Selection State
     const [isBoxSelecting, setIsBoxSelecting] = useState(false);
@@ -608,9 +608,12 @@ export default function MainView() {
                 // 2. Delete
                 await handleDelete(item.id);
 
-                // Refresh and close
                 setUnlockModal({ isOpen: false, item: null, action: 'open' });
                 setSelectedIds(new Set()); // Clear selection
+                refresh();
+            } else if (action === 'unlock') {
+                await unlockNode(item.id, password);
+                setUnlockModal({ isOpen: false, item: null, action: 'open' });
                 refresh();
             }
         } catch (e: any) {
@@ -660,10 +663,7 @@ export default function MainView() {
                 break;
             case 'unlock':
                 if (item) {
-                    const pwd = prompt("Enter password to unlock permanently:");
-                    if (pwd) {
-                        unlockNode(item.id, pwd).then(refresh).catch(e => alert(e.message));
-                    }
+                    setUnlockModal({ isOpen: true, item, action: 'unlock' });
                 }
                 break;
             case 'delete':

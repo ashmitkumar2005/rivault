@@ -108,11 +108,23 @@ function FolderNode({ folder, depth = 0, isCollapsed }: { folder: APIFolder; dep
 }
 
 export default function Sidebar() {
-    // Root is "This PC" now
-    const rootFolder: APIFolder = { id: 'root', parentId: '', name: 'This PC', createdAt: 0, type: 'folder' };
     const { storageUsage, fileTypeFilter, setFileTypeFilter } = useFileSystem();
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isAddDriveOpen, setIsAddDriveOpen] = useState(false);
+    const [drives, setDrives] = useState<APIFolder[]>([]);
+
+    const fetchDrives = async () => {
+        try {
+            const nodes = await listFolder('root');
+            setDrives(nodes.filter(isFolder));
+        } catch (e) {
+            console.error("Failed to load drives", e);
+        }
+    };
+
+    React.useEffect(() => {
+        fetchDrives();
+    }, []);
 
     const formatSize = (bytes: number) => {
         if (bytes === 0) return '0 B';
@@ -185,7 +197,9 @@ export default function Sidebar() {
                     )}
                 </div>
 
-                <FolderNode folder={rootFolder} isCollapsed={isCollapsed} />
+                {drives.map(drive => (
+                    <FolderNode key={drive.id} folder={drive} isCollapsed={isCollapsed} />
+                ))}
             </div>
 
             {/* File Type Filters */}
@@ -225,10 +239,8 @@ export default function Sidebar() {
                 isOpen={isAddDriveOpen}
                 onClose={() => setIsAddDriveOpen(false)}
                 onSuccess={() => {
-                    // Logic to reload sidebar or notify?
-                    // FolderNode internal state won't auto-update if it's already open.
-                    // We might need a global refresh signal or just close/open root.
-                    window.location.reload(); // Brute force refresh for now to pick up new drive in "This PC"
+                    fetchDrives(); // Refresh list logic
+                    // Also trigger global refresh if possible, but drives list is local state here
                 }}
             />
         </div>

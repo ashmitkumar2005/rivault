@@ -39,6 +39,14 @@ function FolderNode({ folder, depth = 0, isCollapsed }: { folder: APIFolder; dep
         ? Math.min(100, (folder.usage / folder.quota) * 100)
         : 0;
 
+    const formatSize = (bytes: number) => {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    };
+
     return (
         <div className="select-none animate-fade-in group/node">
             <div
@@ -81,11 +89,17 @@ function FolderNode({ folder, depth = 0, isCollapsed }: { folder: APIFolder; dep
                     <div className="hidden md:block flex-1 min-w-0">
                         <div className="truncate text-sm font-medium tracking-wide animate-fade-in">{folder.name}</div>
                         {isDrive && folder.quota && (
-                            <div className="mt-1 w-full h-1 bg-white/10 rounded-full overflow-hidden">
-                                <div
-                                    className={`h-full rounded-full transition-all duration-500 ${usagePercent > 90 ? 'bg-red-500' : 'bg-blue-500'}`}
-                                    style={{ width: `${usagePercent}%` }}
-                                />
+                            <div className="mt-1.5 w-full">
+                                <div className="flex justify-between text-[10px] text-zinc-500 mb-1">
+                                    <span>{formatSize(folder.usage || 0)} used</span>
+                                    <span>{formatSize(folder.quota)}</span>
+                                </div>
+                                <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                                    <div
+                                        className={`h-full rounded-full transition-all duration-500 ${usagePercent > 90 ? 'bg-red-500' : 'bg-blue-500'}`}
+                                        style={{ width: `${usagePercent}%` }}
+                                    />
+                                </div>
                             </div>
                         )}
                     </div>

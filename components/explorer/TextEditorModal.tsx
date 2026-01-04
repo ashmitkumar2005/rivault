@@ -1,7 +1,7 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
-import { X, Save, FileText } from 'lucide-react';
+import { X, Save, FileText, RotateCcw, RotateCw, AlignLeft, WrapText, ZoomIn, ZoomOut, Search } from 'lucide-react';
 import Image from 'next/image';
 
 interface TextEditorModalProps {
@@ -14,12 +14,13 @@ interface TextEditorModalProps {
 
 export function TextEditorModal({ isOpen, onClose, onSave, fileName, initialContent }: TextEditorModalProps) {
     const editorRef = useRef<any>(null);
+    const monacoRef = useRef<any>(null); // Store monaco instance
     const [isSaving, setIsSaving] = useState(false);
     const [isDirty, setIsDirty] = useState(false);
 
-    // Update dirty state if content changes? 
-    // Ideally we track if current content != initialContent, 
-    // but for now simple dirty flag on change is enough usage for "unsaved changes" warning if we implement it.
+    // Editor State
+    const [wordWrap, setWordWrap] = useState<'on' | 'off'>('on');
+    const [fontSize, setFontSize] = useState(14);
 
     // Handle keyboard shortcuts
     useEffect(() => {
@@ -34,10 +35,11 @@ export function TextEditorModal({ isOpen, onClose, onSave, fileName, initialCont
             window.addEventListener('keydown', handleKeyDown);
         }
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen]); // Editor ref is stable, but we need to ensure this listener is active when modal is open
+    }, [isOpen]);
 
     const handleEditorDidMount: OnMount = (editor, monaco) => {
         editorRef.current = editor;
+        monacoRef.current = monaco;
 
         // Add save action to command palette / keyboard shortcut within editor context too helpfully
         editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
@@ -61,6 +63,16 @@ export function TextEditorModal({ isOpen, onClose, onSave, fileName, initialCont
             setIsSaving(false);
         }
     };
+
+    // Editor Actions
+    const handleUndo = () => editorRef.current?.trigger('source', 'undo', {});
+    const handleRedo = () => editorRef.current?.trigger('source', 'redo', {});
+    const handleFormat = () => editorRef.current?.getAction('editor.action.formatDocument').run();
+    const handleFind = () => editorRef.current?.getAction('actions.find').run();
+
+    const toggleWordWrap = () => setWordWrap(prev => prev === 'on' ? 'off' : 'on');
+    const zoomIn = () => setFontSize(prev => Math.min(prev + 2, 32));
+    const zoomOut = () => setFontSize(prev => Math.max(prev - 2, 10));
 
     if (!isOpen) return null;
 
@@ -114,6 +126,27 @@ export function TextEditorModal({ isOpen, onClose, onSave, fileName, initialCont
                     </div>
                 </div>
 
+                {/* Toolbar */}
+                <div className="h-10 bg-[#252526]/60 backdrop-blur-sm flex items-center px-4 border-b border-black/50 space-x-1 select-none overflow-x-auto">
+                    <ToolbarButton icon={<RotateCcw size={14} />} onClick={handleUndo} title="Undo (Ctrl+Z)" />
+                    <ToolbarButton icon={<RotateCw size={14} />} onClick={handleRedo} title="Redo (Ctrl+Y)" />
+                    <div className="w-px h-4 bg-white/10 mx-2" />
+                    <ToolbarButton icon={<Search size={14} />} onClick={handleFind} title="Find (Ctrl+F)" />
+                    <ToolbarButton icon={<AlignLeft size={14} />} onClick={handleFormat} title="Format Document (Shift+Alt+F)" />
+                    <div className="w-px h-4 bg-white/10 mx-2" />
+                    <ToolbarButton
+                        icon={<WrapText size={14} />}
+                        onClick={toggleWordWrap}
+                        active={wordWrap === 'on'}
+                        title="Toggle Word Wrap"
+                    />
+                    <div className="flex items-center space-x-1 ml-2">
+                        <ToolbarButton icon={<ZoomOut size={14} />} onClick={zoomOut} title="Zoom Out" />
+                        <span className="text-[10px] text-zinc-400 min-w-[3ch] text-center">{fontSize}</span>
+                        <ToolbarButton icon={<ZoomIn size={14} />} onClick={zoomIn} title="Zoom In" />
+                    </div>
+                </div>
+
                 {/* Editor Area */}
                 <div className="flex-1 relative">
                     <Editor
@@ -125,13 +158,16 @@ export function TextEditorModal({ isOpen, onClose, onSave, fileName, initialCont
                         onChange={() => !isDirty && setIsDirty(true)}
                         options={{
                             minimap: { enabled: true },
-                            fontSize: 14,
-                            wordWrap: 'on',
+                            fontSize: fontSize,
+                            wordWrap: wordWrap,
                             automaticLayout: true,
                             padding: { top: 16, bottom: 16 },
                             scrollBeyondLastLine: false,
                             renderWhitespace: 'selection',
                             fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+                            smoothScrolling: true,
+                            cursorBlinking: "smooth",
+                            cursorSmoothCaretAnimation: "on"
                         }}
                     />
                 </div>
@@ -140,13 +176,26 @@ export function TextEditorModal({ isOpen, onClose, onSave, fileName, initialCont
                 <div className="h-6 bg-[#007acc] text-white text-[10px] px-4 flex items-center justify-between select-none">
                     <div className="flex items-center space-x-4">
                         <span>{language.toUpperCase()}</span>
-                        <span>Shift+Alt+F for Format (if available)</span>
+                        <span>Shift+Alt+F for Format</span>
                     </div>
                     <div className="flex items-center space-x-4">
-                        <span>Ctrl+S to Save</span>
+                        <span>Ln {1}, Col {1}</span> {/* Placeholder, requires cursor tracking logic */}
+                        <span>UTF-8</span>
                     </div>
                 </div>
             </div>
         </div>
+    );
+}
+
+function ToolbarButton({ icon, onClick, title, active = false }: { icon: React.ReactNode, onClick: () => void, title: string, active?: boolean }) {
+    return (
+        <button
+            onClick={onClick}
+            title={title}
+            className={`p-1.5 rounded-md transition-colors ${active ? 'bg-blue-500/20 text-blue-400' : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'}`}
+        >
+            {icon}
+        </button>
     );
 }

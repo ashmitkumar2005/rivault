@@ -41,6 +41,19 @@ export function TextEditorModal({ isOpen, onClose, onSave, fileName, initialCont
         editorRef.current = editor;
         monacoRef.current = monaco;
 
+        // Define transparent theme
+        monaco.editor.defineTheme('transparent-dark', {
+            base: 'vs-dark',
+            inherit: true,
+            rules: [],
+            colors: {
+                'editor.background': '#00000000', // Transparent
+                'minimap.background': '#00000000',
+            }
+        });
+
+        monaco.editor.setTheme('transparent-dark');
+
         // Add save action to command palette / keyboard shortcut within editor context too helpfully
         editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
             handleSave();
@@ -98,9 +111,9 @@ export function TextEditorModal({ isOpen, onClose, onSave, fileName, initialCont
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md animate-fade-in">
-            <div className="w-full h-full md:w-[90vw] md:h-[90vh] bg-[#1e1e1e]/60 backdrop-blur-xl md:rounded-xl shadow-2xl flex flex-col border border-white/10 overflow-hidden">
+            <div className="w-full h-full md:w-[90vw] md:h-[90vh] bg-zinc-900/60 backdrop-blur-xl md:rounded-xl shadow-2xl flex flex-col border border-white/10 overflow-hidden ring-1 ring-white/5">
                 {/* Header */}
-                <div className="h-12 bg-[#2d2d2d]/40 backdrop-blur-sm flex items-center justify-between px-4 border-b border-black/50 select-none">
+                <div className="h-12 bg-white/5 backdrop-blur-md flex items-center justify-between px-4 border-b border-white/10 select-none">
                     <div className="flex items-center space-x-3">
                         <FileText size={18} className="text-blue-400" />
                         <span className="text-sm font-medium text-zinc-200">{fileName}</span>
@@ -111,7 +124,7 @@ export function TextEditorModal({ isOpen, onClose, onSave, fileName, initialCont
                         <button
                             onClick={handleSave}
                             disabled={isSaving}
-                            className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isSaving ? 'text-zinc-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}
+                            className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isSaving ? 'text-zinc-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20'}`}
                         >
                             <Save size={14} className={isSaving ? "animate-spin" : ""} />
                             <span>{isSaving ? "Saving..." : "Save"}</span>
@@ -127,7 +140,7 @@ export function TextEditorModal({ isOpen, onClose, onSave, fileName, initialCont
                 </div>
 
                 {/* Toolbar */}
-                <div className="h-10 bg-[#252526]/60 backdrop-blur-sm flex items-center px-4 border-b border-black/50 space-x-1 select-none overflow-x-auto">
+                <div className="h-10 bg-white/5 backdrop-blur-md flex items-center px-4 border-b border-white/10 space-x-1 select-none overflow-x-auto">
                     <ToolbarButton icon={<RotateCcw size={14} />} onClick={handleUndo} title="Undo (Ctrl+Z)" />
                     <ToolbarButton icon={<RotateCw size={14} />} onClick={handleRedo} title="Redo (Ctrl+Y)" />
                     <div className="w-px h-4 bg-white/10 mx-2" />
@@ -153,7 +166,7 @@ export function TextEditorModal({ isOpen, onClose, onSave, fileName, initialCont
                         height="100%"
                         defaultLanguage={language}
                         defaultValue={initialContent}
-                        theme="vs-dark"
+                        theme="transparent-dark"
                         onMount={handleEditorDidMount}
                         onChange={() => !isDirty && setIsDirty(true)}
                         options={{
@@ -173,7 +186,7 @@ export function TextEditorModal({ isOpen, onClose, onSave, fileName, initialCont
                 </div>
 
                 {/* Footer status bar */}
-                <div className="h-6 bg-[#007acc] text-white text-[10px] px-4 flex items-center justify-between select-none">
+                <div className="h-6 bg-blue-600/80 backdrop-blur-md text-white text-[10px] px-4 flex items-center justify-between select-none border-t border-white/10">
                     <div className="flex items-center space-x-4">
                         <span>{language.toUpperCase()}</span>
                         <span>Shift+Alt+F for Format</span>

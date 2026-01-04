@@ -86,9 +86,9 @@ export function TextEditorModal({ isOpen, onClose, onSave, fileName, initialCont
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md animate-fade-in">
-            <div className="w-full h-full md:w-[90vw] md:h-[90vh] bg-[#1e1e1e]/80 backdrop-blur-xl md:rounded-xl shadow-2xl flex flex-col border border-white/10 overflow-hidden">
+            <div className="w-full h-full md:w-[90vw] md:h-[90vh] bg-[#1e1e1e]/60 backdrop-blur-xl md:rounded-xl shadow-2xl flex flex-col border border-white/10 overflow-hidden">
                 {/* Header */}
-                <div className="h-12 bg-[#2d2d2d]/50 backdrop-blur-sm flex items-center justify-between px-4 border-b border-black/50 select-none">
+                <div className="h-12 bg-[#2d2d2d]/40 backdrop-blur-sm flex items-center justify-between px-4 border-b border-black/50 select-none">
                     <div className="flex items-center space-x-3">
                         <FileText size={18} className="text-blue-400" />
                         <span className="text-sm font-medium text-zinc-200">{fileName}</span>

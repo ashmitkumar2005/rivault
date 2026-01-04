@@ -41,7 +41,7 @@ export default function ContextMenu({ x, y, item, type = 'item', onClose, onActi
         return (
             <div
                 ref={menuRef}
-                className="fixed z-50 w-56 glass-panel rounded-xl shadow-2xl animate-scale-in overflow-hidden flex flex-col p-1 border border-white/10"
+                className="fixed z-50 w-56 bg-zinc-900/60 backdrop-blur-xl rounded-xl shadow-2xl animate-scale-in overflow-hidden flex flex-col p-1 border border-white/10 ring-1 ring-white/5"
                 style={style}
                 onContextMenu={(e) => e.preventDefault()}
             >
@@ -110,7 +110,7 @@ export default function ContextMenu({ x, y, item, type = 'item', onClose, onActi
     return (
         <div
             ref={menuRef}
-            className="fixed z-50 w-56 glass-panel rounded-xl shadow-2xl animate-scale-in overflow-hidden flex flex-col p-1 border border-white/10"
+            className="fixed z-50 w-56 bg-zinc-900/60 backdrop-blur-xl rounded-xl shadow-2xl animate-scale-in overflow-hidden flex flex-col p-1 border border-white/10 ring-1 ring-white/5"
             style={style}
             onContextMenu={(e) => e.preventDefault()}
         >

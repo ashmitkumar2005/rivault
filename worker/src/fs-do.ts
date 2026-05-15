@@ -567,7 +567,7 @@ export class FileSystemDO {
 
         // Name check
         const destSiblings = await this.listFolder(newParentId);
-        if (destSiblings.some(s => s.name === node.name)) {
+        if (destSiblings.some(s => s.id !== id && s.name === node.name)) {
             throw new ClientError("Name conflict in destination", 409);
         }
 

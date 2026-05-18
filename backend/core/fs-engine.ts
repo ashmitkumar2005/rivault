@@ -159,6 +159,10 @@ export function moveNode(state: FSState, nodeId: string, newParentId: string): v
         throw new ForbiddenOperationError("Cannot move root folder");
     }
 
+    if (node.parentId === newParentId) {
+        return;
+    }
+
     // Cycle detection for folders
     if (folder) {
         let currentAncestorId: string | null = newParentId;

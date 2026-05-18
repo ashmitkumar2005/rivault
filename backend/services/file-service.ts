@@ -2,7 +2,12 @@ import * as fsEngine from '../core/fs-engine';
 import { FSState, File, Chunk } from '../core/models';
 import * as gistAdapter from '../persistence/gist-adapter';
 import * as telegramAdapter from '../storage/telegram-adapter';
+import * as localDiskAdapter from '../storage/local-disk-adapter';
 import * as cryptoEngine from '../crypto/crypto-engine';
+
+function getStorageAdapter() {
+    return process.env.STORAGE_BACKEND === 'local' ? localDiskAdapter : telegramAdapter;
+}
 
 // Maintain in-memory state
 let fsState: FSState | null = null;
@@ -93,7 +98,8 @@ export async function uploadFile(
     while (offset < totalSize) {
         const end = Math.min(offset + MAX_CHUNK_SIZE, totalSize);
         const chunkBuf = ciphertext.subarray(offset, end);
-        const chunkRef = await telegramAdapter.uploadChunk(chunkBuf);
+        const adapter = getStorageAdapter();
+        const chunkRef = await adapter.uploadChunk(chunkBuf);
 
         chunks.push({
             order: chunkOrder++,
@@ -152,7 +158,8 @@ export async function downloadFile(fileId: string): Promise<Buffer> {
     const sortedChunks = [...file.chunks].sort((a, b) => a.order - b.order);
     const buffers: Buffer[] = [];
     for (const chunk of sortedChunks) {
-        buffers.push(await telegramAdapter.downloadChunk(chunk.storageReference));
+        const adapter = getStorageAdapter();
+        buffers.push(await adapter.downloadChunk(chunk.storageReference));
     }
     const ciphertext = Buffer.concat(buffers);
 
@@ -224,7 +231,8 @@ export async function deleteFileOrFolder(nodeId: string): Promise<void> {
     // 3. Storage Cleanup (Best-effort)
     // We do not await this or we do? Prompt says "Attempt best-effort deletion... (do not fail operation)".
     // So we catch errors.
-    Promise.allSettled(chunksToDelete.map(ref => telegramAdapter.deleteChunk(ref)));
+    const adapter = getStorageAdapter();
+    Promise.allSettled(chunksToDelete.map(ref => adapter.deleteChunk(ref)));
 }
 
 export async function renameNode(nodeId: string, newName: string): Promise<void> {

@@ -710,14 +710,27 @@ export default function MainView() {
         setContextMenu(null);
 
         switch (action) {
-            case 'new-file':
-                setCreateFileType('any');
-                setIsCreateFileOpen(true);
+            // Item + Background: New File/Txt (via modal)
+            case 'new-file': {
+                const isBgAction = !item;
+                if (isBgAction) {
+                    handleCreateNewFile('new_file.dat');
+                } else {
+                    setCreateFileType('any');
+                    setIsCreateFileOpen(true);
+                }
                 break;
-            case 'new-txt':
-                setCreateFileType('txt');
-                setIsCreateFileOpen(true);
+            }
+            case 'new-txt': {
+                const isBgAction = !item;
+                if (isBgAction) {
+                    handleCreateNewFile('note.txt');
+                } else {
+                    setCreateFileType('txt');
+                    setIsCreateFileOpen(true);
+                }
                 break;
+            }
             case 'open':
                 if (item) onDoubleClick(item);
                 break;
@@ -740,11 +753,16 @@ export default function MainView() {
                 break;
             case 'rename':
                 if (item) {
+                    if (item.locked) {
+                        setAlertModal({ isOpen: true, title: 'Action Denied', message: 'Cannot rename locked item.' });
+                        return;
+                    }
                     let initialName = item.name;
                     if (isDrive(item)) {
                         // Strip " (C:)" for editing
                         initialName = item.name.replace(/ \([A-Z]:\)$/, '');
                     }
+                    setSelectedIds(new Set([item.id]));
                     setRenameModal({ isOpen: true, id: item.id, name: initialName });
                 }
                 break;
@@ -753,33 +771,11 @@ export default function MainView() {
                     setUnlockModal({ isOpen: true, item: item, action: 'delete' });
                     return;
                 }
-                setDeleteModal({ isOpen: true, count: 1 });
-                // If single item delete context, we should probably set selectedIds to it or handle singly?
-                // `initiateDelete` handles multiple. `confirmDelete` iterates `selectedIds`.
-                // If we right-clicked an item, we should have made it focused or selected?
-                // Usually right-click select it.
-                // Let's ensure single item deletion works if context menu logic relies on `selectedIds`.
-                // Actually, `onRightClick` sets context menu item. `confirmDelete` reads `selectedIds`.
-                // We must select it if not selected.
-                // Or just use `handleDelete(item.id)`.
-                // But `setDeleteModal` just sets open state. `confirmDelete` does logic.
-                // If `selectedIds` is empty, `confirmDelete` does nothing.
-                // FIX: If we right click an unselected item, we should probably select it imperatively here?
-                // Or `onRightClick` does it? Currently `onRightClick` just sets context menu.
-                // Let's fix this minor UX detail separately.
-                // For now, simpler: Just set selectedIds to [item.id] if not present?
                 if (item && !selectedIds.has(item.id)) {
                     setSelectedIds(new Set([item.id]));
-                }
-                break;
-            case 'rename':
-                if (item) {
-                    if (item.locked) {
-                        setAlertModal({ isOpen: true, title: 'Action Denied', message: 'Cannot rename locked item.' });
-                        return;
-                    }
-                    setSelectedIds(new Set([item.id]));
-                    setRenameModal({ isOpen: true, id: item.id, name: item.name });
+                    setDeleteModal({ isOpen: true, count: 1 });
+                } else {
+                    setDeleteModal({ isOpen: true, count: Math.max(1, selectedIds.size) });
                 }
                 break;
             case 'lock':
@@ -788,16 +784,6 @@ export default function MainView() {
             case 'unlock':
                 if (item) {
                     setUnlockModal({ isOpen: true, item, action: 'unlock' });
-                }
-                break;
-            case 'delete':
-                if (item) {
-                    if (!selectedIds.has(item.id)) {
-                        setSelectedIds(new Set([item.id]));
-                        setDeleteModal({ isOpen: true, count: 1 });
-                    } else {
-                        setDeleteModal({ isOpen: true, count: selectedIds.size });
-                    }
                 }
                 break;
             case 'copy-link':
@@ -810,15 +796,9 @@ export default function MainView() {
                 }
                 break;
 
-            // Background Actions
+            // Background Only Actions
             case 'new-folder':
                 setIsCreateOpen(true);
-                break;
-            case 'new-file':
-                handleCreateNewFile('new_file.dat');
-                break;
-            case 'new-txt':
-                handleCreateNewFile('note.txt');
                 break;
             case 'refresh':
                 refresh();

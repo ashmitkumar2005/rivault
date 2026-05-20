@@ -45,6 +45,7 @@ export default function InputModal({
                         Cancel
                     </button>
                     <button
+                        type="button"
                         onClick={() => handleSubmit()}
                         className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-medium shadow-lg shadow-blue-900/20 transition-all"
                     >

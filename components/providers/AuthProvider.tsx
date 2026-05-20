@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const login = async (password: string): Promise<{ success: boolean; error?: string }> => {
         try {
-            const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+            const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787/api';
             const res = await fetch(`${API_URL}/auth/verify`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

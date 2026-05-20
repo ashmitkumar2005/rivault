@@ -174,7 +174,7 @@ export function moveNode(state: FSState, nodeId: string, newParentId: string): v
     // Name uniqueness in destination
     const siblings = listFolder(state, newParentId);
     for (const sibling of siblings) {
-        if (sibling.name === node.name) {
+        if (sibling.id !== nodeId && sibling.name === node.name) {
             throw new NameConflictError(`Name "${node.name}" collision in destination folder`);
         }
     }

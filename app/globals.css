@@ -107,3 +107,163 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
+
+/* ==========================================
+   Responsive Utilities
+   Append at the end of globals.css
+========================================== */
+
+/* Large Tablets */
+@media (max-width: 1024px) {
+  body {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .glass-panel {
+    padding: 1.5rem;
+    border-radius: 1.25rem;
+  }
+
+  .glass-button {
+    padding: 0.75rem 1.25rem;
+    font-size: 0.95rem;
+  }
+}
+
+/* Tablets */
+@media (max-width: 768px) {
+  body {
+    font-size: 15px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    background-attachment: scroll;
+  }
+
+  .glass-panel {
+    padding: 1.25rem;
+    border-radius: 1rem;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .glass-button {
+    width: 100%;
+    justify-content: center;
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+  }
+
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  body {
+    font-size: 14px;
+    overflow-y: auto;
+    background-size: cover;
+  }
+
+  .glass-panel {
+    padding: 1rem;
+    border-radius: 0.875rem;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .glass-button {
+    width: 100%;
+    min-height: 44px;
+    padding: 0.75rem;
+    font-size: 0.875rem;
+  }
+}
+
+/* Small Phones */
+@media (max-width: 480px) {
+  body {
+    font-size: 13px;
+  }
+
+  .glass-panel {
+    padding: 0.875rem;
+    border-radius: 0.75rem;
+  }
+
+  .glass-button {
+    padding: 0.7rem;
+    font-size: 0.8rem;
+  }
+
+  ::-webkit-scrollbar {
+    width: 3px;
+    height: 3px;
+  }
+}
+
+/* Very Small Devices */
+@media (max-width: 360px) {
+  body {
+    font-size: 12px;
+  }
+
+  .glass-panel {
+    padding: 0.75rem;
+  }
+
+  .glass-button {
+    padding: 0.6rem;
+    font-size: 0.75rem;
+  }
+}
+
+/* Landscape Phones */
+@media (max-height: 500px) and (orientation: landscape) {
+  body {
+    overflow-y: auto;
+  }
+
+  .glass-panel {
+    padding: 1rem;
+  }
+
+  .glass-button {
+    padding: 0.6rem 1rem;
+  }
+}
+
+/* Touch Devices */
+@media (hover: none) {
+  .glass-button:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .glass-button:active {
+    transform: scale(0.98);
+    background: rgba(255, 255, 255, 0.12);
+  }
+}
+
+/* High-DPI Displays */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .glass-panel {
+    border-width: 0.5px;
+  }
+}
+
+/* Reduced Motion Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
